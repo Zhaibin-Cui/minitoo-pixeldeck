@@ -104,13 +104,13 @@ Replace the IDs with the integer indices returned by `audio-devices`; run it wit
 
 | Mode | Required endpoint | Effect |
 |---|---|---|
-| SPEAKER | `--audio-output OUTPUT_ID` | Five-second test tone |
-| MIC | `--audio-input INPUT_ID` | Input RMS, peak and a bounded waveform |
+| SPEAKER | `--audio-output OUTPUT_ID` | Quiet three-note motif repeated during the five-second test |
+| MIC | `--audio-input INPUT_ID` | RMS/peak in dBFS and a bounded waveform with labeled x16 display gain |
 | DUPLEX | Both | Independent tone output and microphone observation; no mic-to-speaker echo |
 
 While idle, Left / Right selects the mode. Activate starts the test; Activate or desktop Back stops it. Back while idle leaves Audio Lab, and choosing another cartridge cancels an active test. A missing input/output direction produces a visible error instead of selecting a different device. Add `--send` for MiniToo display output; audio output itself does not require that flag.
 
-No audio file is recorded. On shutdown, the host's `latest.png` stores only its last display image, which may include the level graph. Device enumeration and offline stream tests do not verify physical playback, capture or duplex operation; those acceptance checks remain pending.
+Meters show actual dBFS; the bar spans -60 to 0 dBFS. The WAVE X16 scope magnifies only plotted samples, not the microphone signal or system recording gain. Zero is shown as -INF, and missing data as --. No audio file is recorded. On shutdown, the host's `latest.png` stores only its last display image, which may include the level graph. Device enumeration and offline stream tests do not verify physical playback, capture or duplex operation; those acceptance checks remain pending.
 
 ## Device write lab
 

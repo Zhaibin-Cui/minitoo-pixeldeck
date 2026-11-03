@@ -1,7 +1,11 @@
 """Audio cartridge checks with synthetic events and no audio provider imports."""
+import math
 import unittest
 
-from pixeldeck.demos.audio_lab import AudioLab
+from PIL import ImageColor
+
+from pixeldeck.demos.audio_lab import AudioLab, _dbfs, _dbfs_label
+from pixeldeck.pixels import LINE, PINK
 from pixeldeck.protocol import MAX_BLOB, jpeg_clip
 
 
@@ -95,6 +99,50 @@ class AudioLabTests(unittest.TestCase):
                 self.assertEqual((image.mode, image.size), ('RGB', (160, 128)))
                 self.assertLessEqual(len(jpeg_clip([image])), MAX_BLOB)
                 self.assertIsNone(lab.next_delay(100))
+
+    def test_dbfs_distinguishes_missing_silence_quiet_and_full_scale(self):
+        for amplitude, expected, label in ((None, None, '--'), (0, -math.inf, '-INF'),
+                                           (.01, -40, '-40.0'), (.001, -60, '-60.0'),
+                                           (.0001, -80, '-80.0'), (1, 0, '0.0')):
+            with self.subTest(amplitude=amplitude):
+                level = _dbfs(amplitude)
+                self.assertEqual(level, expected)
+                self.assertEqual(_dbfs_label(level), label)
+
+    def test_quiet_meter_is_visible_and_values_below_floor_are_not_boosted(self):
+        lab = AudioLab()
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
+        for amplitude, expected_color in ((.01, PINK), (.001, LINE), (.0001, LINE),
+                                           (0, LINE), (None, LINE), (1, PINK)):
+            with self.subTest(amplitude=amplitude):
+                lab.handle({'type': 'audio.level', 'rms': amplitude, 'peak': amplitude}, 0)
+                image = lab.render(0)
+                self.assertEqual(image.getpixel((60, 97)), ImageColor.getrgb(expected_color))
+
+    def test_scope_display_gain_makes_quiet_wave_visible_without_changing_samples(self):
+        lab = AudioLab()
+        samples = [-.01, .01]*16
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
+        lab.handle({'type': 'audio.level', 'rms': .01, 'peak': .01,
+                    'waveform': samples, 'elapsed': 1}, 0)
+        before = (lab.rms, lab.peak, lab.waveform)
+        image = lab.render(0)
+        rows = {y for x in range(10, 108) for y in range(60, 83)
+                if image.getpixel((x, y)) == ImageColor.getrgb(PINK)}
+        self.assertLess(min(rows), 71)
+        self.assertGreater(max(rows), 71)
+        self.assertEqual((lab.rms, lab.peak, lab.waveform), before)
+        self.assertEqual(samples, [-.01, .01]*16)
+
+    def test_scope_clamps_display_only_and_extreme_finite_labels_fit(self):
+        lab = AudioLab()
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
+        lab.handle({'type': 'audio.level', 'rms': 1, 'peak': 1, 'waveform': [-1, 1]}, 0)
+        image = lab.render(0)
+        self.assertEqual(image.getpixel((10, 81)), ImageColor.getrgb(PINK))
+        self.assertEqual(image.getpixel((107, 61)), ImageColor.getrgb(PINK))
+        self.assertEqual(lab.waveform, (-1., 1.))
+        self.assertLessEqual(len(_dbfs_label(_dbfs(math.nextafter(0, 1)))), 6)
 
 
 if __name__ == '__main__':

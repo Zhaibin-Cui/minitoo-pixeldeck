@@ -20,6 +20,21 @@ def _number(value, name, low=0, high=1):
     return float(value)
 
 
+def _dbfs(amplitude):
+    if amplitude is None:
+        return None
+    return 20*math.log10(amplitude) if amplitude > 0 else -math.inf
+
+
+def _dbfs_label(level):
+    if level is None:
+        return '--'
+    if level == -math.inf:
+        return '-INF'
+    label = f'{level:.1f}'
+    return label if len(label) <= 6 else f'{level:.0f}'
+
+
 class AudioLab(Demo):
     key = 'audio'
     title = 'Audio Lab // speaker and microphone'
@@ -30,6 +45,8 @@ class AudioLab(Demo):
     COLORS = (CYAN, PINK, GOLD)
     ACTIVE_STATES = ('starting', 'ready', 'stopping')
     STATES = ('idle', 'available', 'starting', 'ready', 'stopping', 'stopped', 'error')
+    DBFS_FLOOR = -60.0
+    WAVE_GAIN = 16
 
     def __init__(self):
         self.selected = 0
@@ -120,15 +137,19 @@ class AudioLab(Demo):
         return ('MIC IDLE' if self.MODES[self.selected] in ('microphone', 'duplex') else 'IDLE', MUTED)
 
     def _wave(self, c, color):
-        c.d.rectangle((8, 62, 151, 88), fill=PANEL, outline=LINE)
+        c.d.rectangle((8, 59, 151, 83), fill=PANEL, outline=LINE)
         if self.state == 'error':
             lines = textwrap.wrap(self.message or 'Audio unavailable', width=23,
                                   max_lines=2, placeholder='...')
             for index, line in enumerate(lines):
-                c.text(80, 66+11*index, line, GOLD, center=True)
+                c.text(80, 63+11*index, line, GOLD, center=True)
         elif self.waveform:
-            c.d.line((9, 75, 150, 75), fill=LINE)
-            points = [(10+round(index*139/max(1, len(self.waveform)-1)), 75-round(value*10))
+            c.d.line((9, 71, 107, 71), fill=LINE)
+            c.d.line((111, 61, 111, 81), fill=LINE)
+            c.text(118, 62, 'WAVE', MUTED)
+            c.text(122, 74, f'X{self.WAVE_GAIN}', MUTED)
+            points = [(10+round(index*97/max(1, len(self.waveform)-1)),
+                       71-round(max(-1, min(1, value*self.WAVE_GAIN))*10))
                       for index, value in enumerate(self.waveform)]
             if len(points) == 1:
                 c.d.point(points[0], fill=color)
@@ -138,15 +159,17 @@ class AudioLab(Demo):
             label = ('SHORT TEST TONE', 'MIC OFF UNTIL START', 'TONE + MIC / NO ECHO')[self.selected]
             if self.active:
                 label = 'WAITING FOR LEVELS'
-            c.text(80, 72, label, MUTED, center=True)
+            c.text(80, 68, label, MUTED, center=True)
 
-    @staticmethod
-    def _meter(c, label, y, value, color):
+    @classmethod
+    def _meter(cls, c, label, y, value, color):
+        level = _dbfs(value)
         c.text(8, y, label, MUTED)
         c.d.rectangle((38, y, 110, y+6), fill=LINE)
-        if value is not None and value > 0:
-            c.d.rectangle((38, y, 38+round(value*72), y+6), fill=color)
-        c.text(119, y, '--' if value is None else f'{value*100:.0f}%', color)
+        if level is not None and level > cls.DBFS_FLOOR:
+            fraction = min(1, (level-cls.DBFS_FLOOR)/-cls.DBFS_FLOOR)
+            c.d.rectangle((38, y, 38+round(fraction*72), y+6), fill=color)
+        c.text(116, y, _dbfs_label(level), color)
 
     def render(self, now):
         c = Canvas()
@@ -161,6 +184,9 @@ class AudioLab(Demo):
         c.text(8, 49, label, state_color)
         c.text(109, 49, f'{min(self.elapsed, 99.9):.1f}/5S', MUTED)
         self._wave(c, color)
+        c.text(8, 86, 'DBFS', MUTED)
+        c.text(38, 86, '-60', MUTED)
+        c.text(105, 86, '0', MUTED)
         self._meter(c, 'RMS', 94, self.rms, color)
         self._meter(c, 'PEAK', 104, self.peak, PINK if self.peak is not None and self.peak >= .95 else MINT)
         if self.state == 'stopping':

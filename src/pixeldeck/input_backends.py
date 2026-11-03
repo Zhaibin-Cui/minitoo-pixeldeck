@@ -1,5 +1,6 @@
 """Select an input process without opening an audio or Bluetooth session."""
 from importlib import metadata
+import os
 from pathlib import Path
 import sys
 
@@ -59,3 +60,17 @@ def input_command(config, backend):
     if not executable.is_file():
         raise FileNotFoundError('Install the windows-input extra or run pixeldeck build-input --backend legacy')
     return [str(executable), config.endpoint, str(wave)]
+
+
+def input_environment(backend):
+    """Let source-checkout children import the same package as their parent."""
+    env = os.environ.copy()
+    if backend == 'winrt':
+        source_root = str(Path(__file__).resolve().parent.parent)
+        inherited = env.get('PYTHONPATH')
+        env['PYTHONPATH'] = source_root + (os.pathsep + inherited if inherited else '')
+        env['PYTHONIOENCODING'] = 'utf-8'
+        env['PYTHONUTF8'] = '1'
+    elif backend != 'legacy':
+        raise ValueError('Resolve the input backend before constructing its environment')
+    return env

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1
+
+- Fix media input from source-checkout launchers: child processes inherit the package path and use UTF-8 output.
+- Repeat the speaker motif throughout each bounded audio test.
+- Display microphone levels in dBFS and label the waveform's x16 display gain; recorded sample values remain unchanged.
+- Add license, Python, platform and offline-test badges to the README.
+
 ## 0.6.0
 
 - Optional PyWinRT media input, with explicit backend selection and the legacy bridge retained.

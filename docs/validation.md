@@ -2,7 +2,7 @@
 
 ## Offline checks
 
-The current offline suite passed 178 tests in 20.819 seconds on Windows with Python 3.12.14, Pillow 12.3.0 and Tk 8.6. Hidden preview tests cover twenty activations, local stop, Dashboard selection/detail/back/exit, audio activation and cancellation, stale-event rejection, and release of the instance lock and workers. Window resources are released on the UI thread after the shutdown worker completes. The completed result is recorded in [offline-checks.json](offline-checks.json).
+The current offline suite passed 185 tests in 26.387 seconds on Windows with Python 3.12.14, Pillow 12.3.0 and Tk 8.6. Hidden preview tests cover twenty activations, local stop, Dashboard selection/detail/back/exit, audio activation and cancellation, stale-event rejection, and release of the instance lock and workers. Window resources are released on the UI thread after the shutdown worker completes. The completed result is recorded in [offline-checks.json](offline-checks.json).
 
 Protocol checks cover partial reads, complete checksums, JPEG payloads, missing READY, missing completion, chunk retransmission, brightness acknowledgments and 1,000 idle heartbeats. A blocked-sink test submits one hundred new frames while the first is held; only the first and final images are delivered. Static images are deduplicated.
 
@@ -19,6 +19,8 @@ The Dashboard completed a ten-minute Windows session with an Intel Bluetooth ada
 The operator attempted the original Back key, which is not mapped by the current media bridge; detail return uses Play/Pause. Up/down also have no implemented mapping. This is a limitation of the current access path, not an established limit of the device. The record distinguishes received callbacks from visual confirmation and does not measure physical-button-to-visible-pixel latency. Other adapters, Windows installations, device firmware and overnight runs remain untested. The eight utility renderers introduced in 0.4.0 have not each had a separate physical-device check.
 
 ## Subsequent input investigation
+
+A source-checkout launcher exposed a separate startup defect: its parent adjusted `sys.path`, but the media child inherited no package path. The child could not import `pixeldeck`, and locale-encoded startup errors then failed UTF-8 decoding. Version 0.6.1 passes an explicit package path and UTF-8 environment. A regression launches the real format-only child from an unrelated directory with no inherited package path; a subsequent live production receiver reached media-opened-and-playing readiness and released its worker cleanly. No physical button was pressed in that startup check, so physical input acceptance remains separate.
 
 After that successful session, the C# media receiver intermittently failed during startup with `0xC0000005`. A minimal .NET HelloWorld program also failed before producing output in tests that used no Bluetooth hardware. The root cause remains unknown; no particular OS, runtime component or device command has been identified as the cause.
 
@@ -66,7 +68,7 @@ Only live-display commands are sent by ordinary demos. No gallery-save or firmwa
 
 ## Reproduce
 
-### Pending 0.6.0 hardware acceptance
+### Pending 0.6.1 hardware acceptance
 
 These checks await the operator's final session in confirmed Bluetooth Music mode. Offline checks do not establish that repeated or missing Play/Pause actions are fixed.
 

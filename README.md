@@ -1,8 +1,15 @@
 <p align="center"><img src="docs/assets/hero.gif" alt="MiniToo Pixeldeck: a pixel robot on an illustrated desktop device" width="1080"></p>
 
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-9affb3?style=flat-square&amp;labelColor=152440" alt="License: MIT"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python_core-3.10%2B-54edff?style=flat-square&amp;labelColor=152440" alt="Python core: 3.10+"></a>
+  <a href="docs/usage.md#bluetooth-compatibility"><img src="https://img.shields.io/badge/live_backend-Windows-ff73bc?style=flat-square&amp;labelColor=152440" alt="Live backend: Windows"></a>
+  <a href="docs/validation.md"><img src="https://img.shields.io/badge/0.6.1-185_offline_tests_passed-9affb3?style=flat-square&amp;labelColor=152440" alt="0.6.1: 185 offline tests passed"></a>
+</p>
+
 <p align="center"><strong>MiniToo protocol tools, live pixels and interactive demos.</strong><br>
 Protocol tools · independent streams · eighteen original pixel cartridges<br>
-Python 3.10+ core · Python 3.11+ WinRT input · MIT · v0.6.0</p>
+Python 3.10+ core · Python 3.11+ WinRT input · MIT · v0.6.1</p>
 
 MiniToo Pixeldeck is an independent, unofficial reverse-engineering toolkit for the **Divoom MiniToo**. Send images, build interactive pixel scenes, inspect the protocol, or use the display as a miniature system monitor. The software runs on your computer and leaves the device firmware unchanged. Importing the package never connects a device.
 

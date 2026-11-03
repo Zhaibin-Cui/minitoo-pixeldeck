@@ -209,6 +209,37 @@ class AudioTests(unittest.TestCase):
         self.assertTrue(0 <= rms <= 1 and 0 <= peak <= 1)
         self.assertEqual(len(waveform), 32)
 
+    def test_speaker_repeats_motif_across_buffers_until_cancelled(self):
+        sd = FakeSoundDevice()
+        sd.devices[1]['default_samplerate'] = 8000
+        stopped = threading.Event()
+        events, rendered = [], bytearray()
+
+        def receive(event):
+            events.append(event)
+            if event.get('state') != 'ready':
+                return
+            stream = sd.streams[0]
+            rendered.extend(stream.output)
+            # Unequal buffers cross the one-second boundary several times.
+            for frames in (2000, 4000, 4000, 4000, 4000):
+                output = bytearray(frames*stream.values['channels']*2)
+                stream.values['callback'](output, frames, None, False)
+                rendered.extend(output)
+            stopped.set()
+            output = bytearray([255]*64)
+            with self.assertRaises(sd.CallbackAbort):
+                stream.values['callback'](output, 16, None, False)
+            self.assertEqual(output, bytes(64))
+
+        AudioBackend(output_device=1, sd_module=sd).run('speaker', 5, stopped, receive)
+        cycle_bytes = 8000*2*2
+        self.assertEqual(rendered[:cycle_bytes], rendered[cycle_bytes:2*cycle_bytes])
+        self.assertTrue(any(rendered[2*cycle_bytes:]))
+        self.assertLessEqual(max(abs(value) for value in memoryview(rendered).cast('h')), 1400)
+        self.assertTrue(sd.streams[0].aborted and sd.streams[0].closed)
+        self.assertEqual(events[-1]['state'], 'stopped')
+
 
 if __name__ == '__main__':
     unittest.main()

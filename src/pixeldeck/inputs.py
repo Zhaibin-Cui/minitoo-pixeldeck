@@ -7,7 +7,7 @@ import subprocess
 import threading
 import time
 from .config import home
-from .input_backends import input_command, select_backend
+from .input_backends import input_command, input_environment, select_backend
 
 BUTTONS={"Next":"next","Previous":"previous","Play":"activate","Pause":"activate"}
 
@@ -122,6 +122,7 @@ class MediaInput:
             if self._stop.is_set(): return None
             process=self._factory(self._command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,text=True,encoding='utf-8',bufsize=1,
+                env=input_environment(self.backend),
                 creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             run=self._Run(process,attempt,self._activation_window); self._run=run; self.process=process
             run.timer=threading.Timer(self._ready_timeout,self._deadline,args=(run,))

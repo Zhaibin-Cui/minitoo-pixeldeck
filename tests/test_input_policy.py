@@ -1,10 +1,14 @@
 import sys
+import json
+import os
+import subprocess
+import tempfile
 import unittest
 from importlib import metadata
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from pixeldeck.input_backends import input_command, select_backend, winrt_status
+from pixeldeck.input_backends import input_command, input_environment, select_backend, winrt_status
 from pixeldeck.inputs import ActivationGuard
 
 
@@ -36,6 +40,29 @@ class ActivationPolicyTests(unittest.TestCase):
 
 
 class BackendTests(unittest.TestCase):
+    def test_child_environment_preserves_dependencies_and_parent_state(self):
+        with patch.dict(os.environ, {'PYTHONPATH': 'optional-bindings', 'PYTHONIOENCODING': 'cp1252'}):
+            env = input_environment('winrt')
+            self.assertEqual(env['PYTHONPATH'].split(os.pathsep)[-1], 'optional-bindings')
+            self.assertEqual(env['PYTHONIOENCODING'], 'utf-8')
+            self.assertEqual(env['PYTHONUTF8'], '1')
+            self.assertEqual(os.environ['PYTHONIOENCODING'], 'cp1252')
+
+    def test_source_child_starts_from_an_unrelated_directory_without_inherited_package_path(self):
+        with patch.dict(os.environ, {'PYTHONPATH': '', 'PYTHONIOENCODING': 'cp1252'}), \
+                tempfile.TemporaryDirectory() as directory:
+            env = input_environment('winrt')
+            result = subprocess.run(
+                [sys.executable, '-u', '-m', 'pixeldeck.winrt_bridge', '--self-test-json'],
+                cwd=directory, env=env, capture_output=True, encoding='utf-8', timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            events = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual([event['value'] for event in events[:3]], ['Next', 'Play', 'Pause'])
+            unicode_result = subprocess.run(
+                [sys.executable, '-c', "print('声音测试')"], cwd=directory, env=env,
+                capture_output=True, encoding='utf-8', timeout=15)
+            self.assertEqual(unicode_result.stdout.strip(), '声音测试')
+
     def test_explicit_legacy_does_not_check_optional_dependencies(self):
         with patch('pixeldeck.input_backends.winrt_status', side_effect=AssertionError):
             self.assertEqual(select_backend('legacy'), 'legacy')

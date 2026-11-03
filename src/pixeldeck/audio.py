@@ -218,8 +218,6 @@ class AudioBackend:
                         offset = 0
                         while offset < len(output) and tone:
                             if position[0] == len(tone):
-                                if mode == 'speaker':
-                                    break
                                 position[0] = 0
                             size = min(len(tone)-position[0], len(output)-offset)
                             output[offset:offset+size] = tone[position[0]:position[0]+size]
