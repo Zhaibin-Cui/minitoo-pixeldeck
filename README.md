@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/assets/hero.gif" alt="MiniToo Pixeldeck: a pixel robot on an illustrated desktop device" width="1080"></p>
+<p align="center"><img src="docs/assets/hero.gif" alt="MiniToo Pixeldeck: a miniature console in a glowing pixel forest" width="1080"></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-9affb3?style=flat-square&amp;labelColor=152440" alt="License: MIT"></a>
@@ -72,6 +72,8 @@ The hardware paths are different: image packets use **Classic Bluetooth RFCOMM c
 | Audio | `AudioWorker(callback, backend_factory=...)`; backend implements `run` | Only for real streams |
 
 See the [runtime pipeline and resource bounds](docs/architecture.md), [API recipes](docs/extending.md), and [capability-to-demo map](docs/capabilities.md).
+
+<p align="center"><img src="docs/assets/forest-divider.png" alt="" width="1080"></p>
 
 ## Use it
 
@@ -166,6 +168,8 @@ Each incoming line is a small typed event. Use `{"type":"notice","text":"BUILD C
 ```
 
 Run `pixeldeck run build --stdin` and let your own producer report state changes. Neither schema executes commands or integrates with a hosted service. [Full CLI and configuration reference →](docs/usage.md)
+
+<p align="center"><img src="docs/assets/forest-divider.png" alt="" width="1080"></p>
 
 ## Insert a cartridge
 
@@ -281,6 +285,8 @@ Individual cartridges for monitoring, timing and pushed events. [View the utilit
 
 Build events, home automation, chat notices, creative experiments: bring your own producer. Signal keeps the last eight notices and updates only when an event arrives. Activate clears the inbox. It is a generic local interface with no service integration or embedded credentials.
 
+<p align="center"><img src="docs/assets/forest-divider.png" alt="" width="1080"></p>
+
 ## Write a cartridge
 
 A cartridge renders one `160 × 128` RGB image. It knows nothing about Bluetooth:
@@ -346,11 +352,13 @@ The release tool uses a public file allowlist, checks relative Markdown links, s
 <details>
 <summary><strong>Rebuild the visual documentation</strong></summary>
 
-`tools/build_gallery.py` generates the hero, control strip, I/O map, runtime diagram, contact sheets and every cartridge PNG/GIF from source. The monitor fixtures are synthetic and carry no host identity. No image-generation service, paid font or downloaded sprite pack is needed to reproduce the gallery.
+`tools/build_gallery.py` generates the animated forest hero, woodland dividers, control strip, I/O map, runtime diagram, contact sheets and every cartridge PNG/GIF from source. The monitor fixtures are synthetic and carry no host identity. No image-generation service, paid font or downloaded sprite pack is needed to reproduce the gallery.
 
 </details>
 
 ## Credits
+
+Maintained by [Zhaibin-Cui](https://github.com/Zhaibin-Cui).
 
 Protocol research: [bugzmanov/divoom-minitoo](https://github.com/bugzmanov/divoom-minitoo), [alvinunreal/divoom-minitoo-osx](https://github.com/alvinunreal/divoom-minitoo-osx), and [lewilou22/divoom-minitoo-tools](https://github.com/lewilou22/divoom-minitoo-tools). Visual inspiration: [RoboEyes](https://github.com/FluxGarage/RoboEyes), [PICO-8 particles](https://mboffin.itch.io/pico-8-particles), and the [MiniToo industrial design](https://divoom.com/products/minitoo/).
 

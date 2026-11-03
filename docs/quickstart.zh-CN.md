@@ -1,5 +1,7 @@
 # MiniToo Pixeldeck 中文快速上手
 
+<p align="center"><img src="assets/forest-banner.png" alt="" width="1080"></p>
+
 这是独立的 MiniToo 像素开发工具。电脑运行程序，通过蓝牙发送画面；没有替换设备固件。代码、主文档和像素界面以英文为主。
 
 ## 架构

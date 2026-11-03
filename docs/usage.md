@@ -1,5 +1,7 @@
 # Usage
 
+<p align="center"><img src="assets/forest-banner.png" alt="" width="1080"></p>
+
 Install from a source checkout with `python -m pip install -e .`.
 
 For the full Windows setup, use Python 3.11+ in a virtual environment:

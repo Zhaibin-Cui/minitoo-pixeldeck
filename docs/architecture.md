@@ -1,5 +1,7 @@
 # Architecture
 
+<p align="center"><img src="assets/forest-divider.png" alt="" width="1080"></p>
+
 ![Runtime architecture](assets/architecture.png)
 
 ## Ownership

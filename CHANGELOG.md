@@ -9,6 +9,7 @@
 - Send the latest frame after connection setup; report encoding time, queue wait and frame age separately.
 - Document the microphone-loaded encoding comparison and add codec selection to the device write lab.
 - Fix timestamp ordering in the offline audio export and align the custom cartridge example with its Activate control.
+- Refresh the documentation with original pixel forest artwork and reproducible animated scenery.
 
 ## 0.6.2
 

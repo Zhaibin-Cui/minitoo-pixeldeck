@@ -1,10 +1,12 @@
 # README design notes
 
-The README uses the device's pixel palette and control layout. It starts with architecture and setup, followed by a gallery of runnable cartridges.
+The README places a miniature console in a pixel forest: leaves, hanging vines, floating ground and warm fireflies around a clear technical workspace. It starts with architecture and setup, followed by a gallery of runnable cartridges.
 
 ## Layout choices
 
-- The animated hero establishes a recognizable device silhouette and pixel palette.
+- The animated hero keeps the recognizable device silhouette inside an original woodland scene.
+- Static forest dividers mark the setup, gallery and extension sections. Leaf accents stay outside text, code and real demo renders.
+- Dark blue and pine green carry the setting; cyan, pink and gold retain their meaning in technical diagrams and status displays.
 - A compact terminal-style project map lists the canvas, cartridge count and input/output model.
 - Three navigation chapters separate the engine, first run and cartridge shelf.
 - Each gallery card places its render beside a command and an activation behavior.
@@ -12,7 +14,7 @@ The README uses the device's pixel palette and control layout. It starts with ar
 - Deeper recipes use collapsible sections so the gallery remains easy to browse.
 - The source links next to the gallery connect every visual to reproducible code.
 
-The control strip, architecture graphic, illustrations and previews are generated locally by `tools/build_gallery.py` from the project's drawing code and renderers. Monitor and audio previews use synthetic data; hardware measurements stay in the validation record.
+The forest artwork, control strip, architecture graphic, illustrations and previews are generated locally by `tools/build_gallery.py` from the project's drawing code and renderers. Monitor and audio previews use synthetic data; hardware measurements stay in the validation record. Decorative images have empty alternative text; the hero and diagrams have descriptive alternatives.
 
 ## References
 
