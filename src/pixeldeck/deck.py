@@ -9,8 +9,11 @@ class Deck:
     @property
     def active(self): return self.demos[self.keys[self.index]]
     def handle(self,event,now):
+        if event['type']=='button' and event['button']=='reset' and not self.active.supports_reset:
+            return
         if event['type']=='button' and event['button'] in ('next','previous'):
             self.index=(self.index+(1 if event['button']=='next' else -1))%len(self.keys)
         elif event['type']=='select': self.index=self.keys.index(event['demo'])
         elif event['type']=='notice': self.demos['signal'].handle(event,now)
+        elif event['type']=='build': self.demos['build'].handle(event,now)
         else: self.active.handle(event,now)

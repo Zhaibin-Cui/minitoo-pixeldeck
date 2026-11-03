@@ -1,12 +1,16 @@
-# Validation / evidence before promises
+# Validation
 
 ## Offline checks
 
-On the Windows development host: Python 3.12.14, Pillow 12.3.0, Tk 8.6. The suite contains 25 checks, including a hidden preview window that handles twenty activations, acknowledges a local stop request and releases the instance lock. The packaged result is recorded in `offline-checks.json`.
+Version 0.4.0 passed 50 tests in 5.373 seconds on Windows with Python 3.12.14, Pillow 12.3.0 and Tk 8.6. This includes a hidden preview window that handles twenty activations, acknowledges a local stop request and releases the instance lock. The packaged result is recorded in [offline-checks.json](offline-checks.json).
 
 Protocol checks cover partial reads, complete checksums, JPEG payloads, missing READY, missing completion, chunk retransmission, brightness acknowledgments and 1,000 idle heartbeats. A blocked-sink test submits one hundred new frames while the first is held; only the first and final images are delivered. Static images are deduplicated.
 
-All seven renderers produce 160 × 128 RGB frames within the configured upload budget. Gallery PNGs and GIFs are generated from the code and visually inspected. The C# bridge compiles and its format-only self-test emits Next, Play and Pause without opening a player.
+All fifteen renderers produce 160 × 128 RGB frames within the configured upload budget. Gallery PNGs and GIFs are generated from the code and visually inspected. The tests also cover pause/resume timing, large timer gaps, bounded network history, missing metrics, malformed push events, coalesced source requests and source-worker initialization failures.
+
+Read-only measurements on the development host confirmed working network rates, a battery API response, two fixed-disk capacity readings and local/UTC time. Network and battery checks used psutil 7.2.2. This checks the host data sources; it does not verify the new cartridges on a physical MiniToo. Gallery data is synthetic.
+
+The unchanged C# bridge was compiled and checked during the 0.3.0 release. Its format-only self-test emitted Next, Play and Pause without opening a player.
 
 ## Preceding hardware session — 2026-11-03
 

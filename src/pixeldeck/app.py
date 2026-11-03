@@ -18,7 +18,7 @@ from .driver import MiniToo
 from .engine import FramePump
 from .inputs import MediaInput, read_notices
 from .instance import InstanceLock
-from .telemetry import Telemetry
+from .sources import SourceWorker
 
 class Application:
     def __init__(self, config, demo='buddy', send=False, media=False, stdin=False, duration=600):
@@ -27,7 +27,8 @@ class Application:
         self.lock=InstanceLock(self.runtime/'instance.lock')
         self.deck=Deck(demo); self.closing=threading.Event()
         self.events=queue.Queue(128); self.buttons=queue.Queue(32)
-        self.timer=None; self.telemetry=None; self.pump=None; self.media=None; self.control=None
+        self.timer=None; self.pump=None; self.media=None; self.control=None
+        self.source_worker=None; self.source_timer=None; self.source_signature=None; self.source_generation=0
         self.log=logging.getLogger('pixeldeck.'+str(id(self))); self.log.setLevel(logging.INFO)
         self.handler=RotatingFileHandler(self.runtime/'events.log',maxBytes=1024*1024,backupCount=2,encoding='utf-8')
         self.handler.setFormatter(logging.Formatter('%(asctime)s %(message)s')); self.log.addHandler(self.handler)
@@ -45,6 +46,7 @@ class Application:
         tk.Label(self.root,textvariable=self.status,bg='#080d19',fg='#9affb3',wraplength=470,font=('Consolas',10)).pack(pady=14)
         self.root.bind('<Left>',lambda _:self.button('previous')); self.root.bind('<Right>',lambda _:self.button('next'))
         self.root.bind('<Return>',lambda _:self.button('activate')); self.root.bind('<space>',lambda _:self.button('activate'))
+        self.root.bind('<r>',lambda _:self.button('reset')); self.root.bind('<R>',lambda _:self.button('reset'))
         self.root.bind('<<Events>>',self.process); self.root.bind('<<Quit>>',lambda _:self.close())
         self.root.bind('<<Released>>',lambda _:self.root.destroy())
         self.root.protocol('WM_DELETE_WINDOW',self.close); self.root.after(0,self.start)
@@ -64,6 +66,7 @@ class Application:
         self.post({'type':'button','button':key,'raw':'KEYBOARD','source':'desktop','received_at':time.monotonic()})
 
     def start(self):
+        self.source_worker=SourceWorker(self.post)
         try:
             self.control=Control(self.runtime,lambda:self.root.event_generate('<<Quit>>',when='tail'))
         except Exception as exc: self.status.set('Local stop unavailable: '+str(exc))
@@ -88,17 +91,23 @@ class Application:
                 try: event=self.events.get_nowait()
                 except queue.Empty: break
             kind=event.get('type'); now=time.monotonic()
-            if kind in ('button','select','tick','notice','telemetry'):
+            if kind in ('button','select','tick','notice','build'):
                 try:
-                    if kind=='tick' and self.deck.active.key=='pulse' and not self.deck.active.held:
-                        if self.telemetry is None: self.telemetry=Telemetry()
-                        self.deck.handle(self.telemetry.sample(),now)
                     self.deck.handle(event,now); dirty=True
+                    if kind in ('button','select'): self.sync_sources()
                     if kind=='button':
                         received_at=event.get('received_at')
                         self.log.info('input %s',json.dumps(dict(event,page=self.deck.active.key),ensure_ascii=True))
                 except Exception as exc:
                     self.status.set('Event rejected: '+str(exc)); self.log.exception('event_rejected')
+            elif kind=='source.result':
+                if event['generation']==self.source_generation:
+                    for update in event['events']:
+                        try: self.deck.handle(update,now)
+                        except (ValueError,TypeError,KeyError):
+                            self.status.set('Source data rejected')
+                            self.log.warning('source_data_rejected %s',update.get('type'))
+                    dirty=True
             else:
                 self.log.info('%s %s',kind,json.dumps(event,ensure_ascii=True))
                 if kind=='frame.ack': self.status.set(f"LIVE / ACK {event['sequence']} / {event['transfer_ms']:.0f} ms / skipped {event['replaced']}")
@@ -113,19 +122,41 @@ class Application:
         if self.pump: self.pump.submit(image,received_at)
         image.save(self.runtime/'latest.png')  # Replaces one preview, never an image archive.
         if self.timer is not None: self.root.after_cancel(self.timer); self.timer=None
-        if self.deck.active.key!='pulse' or self.deck.active.held: self.telemetry=None
-        elif self.telemetry is None: self.telemetry=Telemetry()
+        self.sync_sources()
         delay=self.deck.active.next_delay(now)
         if delay is not None:
             self.timer=self.root.after(max(1,round(delay*1000)),lambda:self.post({'type':'tick'}))
+
+    def sync_sources(self):
+        active=self.deck.active
+        names=tuple(active.sources) if not getattr(active,'held',False) else ()
+        signature=(active.key,names)
+        if signature==self.source_signature: return
+        self.source_signature=signature; self.source_generation+=1
+        if self.source_timer is not None:
+            self.root.after_cancel(self.source_timer); self.source_timer=None
+        if self.source_worker:
+            if names: self.sample_sources()
+            else: self.source_worker.request((),self.source_generation)
+
+    def sample_sources(self):
+        self.source_timer=None
+        if self.closing.is_set(): return
+        names=self.source_signature[1]
+        if not names: return
+        if not self.source_worker.request(names,self.source_generation):
+            self.status.set('Data source unavailable; restart the session')
+            return
+        self.source_timer=self.root.after(max(50,round(self.deck.active.source_interval*1000)),self.sample_sources)
 
     def close(self):
         if self.closing.is_set(): return
         self.closing.set()
         if self.timer is not None: self.root.after_cancel(self.timer)
+        if self.source_timer is not None: self.root.after_cancel(self.source_timer)
         self.status.set('Releasing device and input session...')
         def release():
-            for resource in (self.pump,self.media,self.control):
+            for resource in (self.pump,self.media,self.source_worker,self.control):
                 if resource:
                     try: resource.close()
                     except Exception: self.log.exception('release_error')

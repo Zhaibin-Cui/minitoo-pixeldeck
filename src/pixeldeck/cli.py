@@ -43,6 +43,7 @@ def main():
         import PIL
         print(json.dumps({'version':__version__,'python':sys.version.split()[0],'pillow':PIL.__version__,
           'tkinter':importlib.util.find_spec('tkinter') is not None,'hardware_backend':'Windows RFCOMM',
+          'telemetry_extra':importlib.util.find_spec('psutil') is not None,
           'input_built':(home()/'native/MediaBridge.exe').exists(),'device_configured':bool(DeviceConfig.load().address),
           'hardware_accessed':False},indent=2)); return
     if args.command=='build-input':

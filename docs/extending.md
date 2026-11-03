@@ -6,6 +6,10 @@ Subclass `Demo`. `render(now)` produces RGB pixels, `handle(event, now)` mutates
 
 Register the class with `pixeldeck.demos.register`, then create `Application(config, demo="your-key")`. [Complete example](../examples/custom_cartridge.py).
 
+A data-backed cartridge can declare `sources = ("network",)` and `source_interval = 1.0`, then consume the corresponding `network` event in `handle`. Source reads happen in the host's worker, not the renderer. A cartridge with a `held` state can suspend its data requests while frozen. Keep sample history bounded and show unavailable values honestly.
+
+Use `supports_reset = True` for a cartridge that handles the desktop button event `{"type":"button","button":"reset"}`. Distinguish that action from `activate`; do not increment a counter or toggle playback on every event whose type happens to be `button`.
+
 ## A direct image sender
 
 ```python
@@ -42,7 +46,13 @@ To recover while idle, route the driver's `on_disconnect` callback to `pump.reco
 
 ## A notification producer
 
-Write one JSON object and a newline whenever the source event occurs. Flush the pipe. No file tailing is required. Only `type=notice` and a string `text` are accepted by the bundled reader. [One-shot example](../examples/push_notice.py).
+Write one JSON object and a newline whenever the source event occurs. Flush the pipe. No file tailing is required. The bundled reader accepts a `notice` with string `text`, or a `build` event with bounded project/step text, a defined state and optional numeric progress. [One-shot notice example](../examples/push_notice.py).
+
+```json
+{"type":"build","project":"PIXEL PROJECT","state":"running","progress":64,"step":"RUNNING CHECKS"}
+```
+
+The producer owns the actual operation and decides when to send `passed` or `failed`. Pixeldeck does not infer success from a progress bar reaching 100, execute commands from events, or poll a directory for changes.
 
 ## A new transport
 

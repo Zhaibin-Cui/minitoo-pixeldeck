@@ -1,5 +1,6 @@
 """Blocking input streams. The producer callback is the wake-up mechanism."""
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -8,6 +9,20 @@ import time
 from .config import home
 
 BUTTONS={"Next":"next","Previous":"previous","Play":"activate","Pause":"activate"}
+
+def decode_push(data):
+    if not isinstance(data,dict): raise ValueError('Expected a JSON object')
+    if data.get('type')=='notice' and isinstance(data.get('text'),str):
+        return {'type':'notice','text':data['text'][:80]}
+    if data.get('type')=='build':
+        state=data.get('state'); progress=data.get('progress')
+        project=data.get('project','LOCAL BUILD'); step=data.get('step','')
+        if state not in ('idle','running','passed','failed'): raise ValueError('Invalid build state')
+        if not isinstance(project,str) or not isinstance(step,str): raise ValueError('Build labels must be strings')
+        if progress is not None and (type(progress) not in (int,float) or not math.isfinite(progress) or not 0<=progress<=100):
+            raise ValueError('Build progress must be 0..100 or null')
+        return {'type':'build','project':project[:20],'state':state,'progress':progress,'step':step[:40]}
+    raise ValueError('Expected a notice or build event')
 
 def decode_media(line):
     data=json.loads(line)
@@ -26,9 +41,7 @@ def read_notices(stream, callback):
             continue
         try:
             data=json.loads(line)
-            if not isinstance(data,dict) or data.get('type')!='notice' or not isinstance(data.get('text'),str):
-                raise ValueError('Expected {"type":"notice","text":"..."}')
-            callback({'type':'notice','text':data['text'][:80]})
+            callback(decode_push(data))
         except (ValueError,TypeError) as exc:
             callback({'type':'input.status','kind':'error','message':str(exc)})
 

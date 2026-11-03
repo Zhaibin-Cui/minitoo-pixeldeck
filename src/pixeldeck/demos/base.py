@@ -7,6 +7,9 @@ class Demo:
     key = "custom"
     title = "Custom cartridge"
     description = "A user-defined demo."
+    sources = ()
+    source_interval = 1.0
+    supports_reset = False
     def handle(self, event, now): pass
     def next_delay(self, now): return None
     def render(self, now): raise NotImplementedError

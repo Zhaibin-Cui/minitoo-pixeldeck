@@ -4,13 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minitoo-pixeldeck"
-version = "0.3.0"
+version = "0.4.0"
 description = "Small screen. Big personality. Event-driven MiniToo toolkit and pixel playground."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = ["Pillow>=10,<13"]
 keywords = ["minitoo", "pixel-art", "bluetooth", "reverse-engineering"]
+
+[project.optional-dependencies]
+telemetry = ["psutil>=5.9,<8"]
 
 [project.scripts]
 pixeldeck = "pixeldeck.cli:main"

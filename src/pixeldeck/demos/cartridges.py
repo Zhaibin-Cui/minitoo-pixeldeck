@@ -8,6 +8,8 @@ from .base import Demo, Animation
 class Pulse(Demo):
     key, title = "pulse", "Pulse // system telemetry"
     description = "A cyan CPU waveform and memory meter. Activate freezes the sample."
+    sources = ('telemetry',)
+    source_interval = 1.0
     def __init__(self):
         self.samples = deque(maxlen=61)
         self.ram = None
@@ -17,7 +19,7 @@ class Pulse(Demo):
         if event.get("type") == "telemetry" and not self.held:
             self.samples.append(event.get("cpu"))
             self.ram = event.get("memory")
-    def next_delay(self, now): return None if self.held else 1.0
+    def next_delay(self, now): return None
     def render(self, now):
         c = Canvas(); c.header("PULSE", "01"); c.grid()
         value = self.samples[-1] if self.samples else None

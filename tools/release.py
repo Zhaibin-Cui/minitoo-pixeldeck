@@ -58,7 +58,8 @@ def audit(files,terms=()):
 
 def release(files):
     target=ROOT/'dist'; target.mkdir(exist_ok=True)
-    archive=target/'minitoo-pixeldeck-0.3.0.zip'
+    version=re.search(r'^version\s*=\s*"([^"]+)"', (ROOT/'pyproject.toml').read_text(encoding='utf-8'),re.M).group(1)
+    archive=target/f'minitoo-pixeldeck-{version}.zip'
     hashes={name:hashlib.sha256(path.read_bytes()).hexdigest() for path,name in files}
     with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as bundle:
         for path,name in files: bundle.write(path,'minitoo-pixeldeck/'+name)

@@ -1,4 +1,4 @@
-# Capability map / every layer has a playground
+# Capability map
 
 | Implemented capability | Demo / recipe | Verification |
 |---|---|---|
@@ -9,7 +9,15 @@
 | Next / Previous / Play / Pause | Navigation + Button Lab + Focus | User-confirmed predecessor session; new binary compiles |
 | Monotonic time events | Focus Foundry | Elapsed-time and pause/resume checks |
 | CPU and memory | Pulse | Windows provider; Linux implementation not host-tested |
-| Bounded JSONL push input | Signal Inbox, `push_notice.py` | Schema and queue-limit checks |
+| Passive network counters | Net Scope | Optional source, bounded history and freeze behavior checks |
+| Volume capacity | Volume Vault | Host source plus pure-renderer fixture checks |
+| Battery and external power | Power Cell | Optional source; unavailable/no-battery states are explicit |
+| Local / UTC wall clock | Neon Clock | Typed wall-clock events; renderer does not read the system clock |
+| Start / pause / reset timing | Stopwatch | Monotonic elapsed-time checks |
+| Focus / break cycle | Pomodoro | Pause/resume and phase-boundary checks |
+| Four-phase pacing | Breath Loop | Deterministic phase and paused-state checks |
+| Visible-source subscriptions | Monitoring cartridges | Sampling runs outside rendering and ends when no longer needed |
+| Bounded JSONL push input | Signal Inbox, Build Beacon | Notice/build schema checks; no execution path |
 | Frame fitting / alpha | `image` | Automated alpha-compositing check |
 | JPEG multi-frame encoding | `clip`, `protocol_lab.py` | Encoding and bounds checks; device playback experimental |
 | Packet framing / fragmentation | `protocol_lab.py` | Golden bytes and corrupted packet tests |
@@ -20,4 +28,6 @@
 | Stop and release | Window close / `stop` | Hidden GUI and local IPC integration check |
 | Offline art export | `export`, `build_gallery.py` | Generated gallery inspected locally |
 
-Not implemented: firmware flashing, factory reset, persistent photo storage, custom watchface installation, audio playback control as a public API, BLE, arbitrary joystick events, undocumented raw command execution, automatic device discovery, or cloud services. The scope is explicit so an extension can be assessed without guessing which hardware behavior is supported.
+The eight 0.4.0 utility cartridges have separate validation from the earlier seven-cartridge hardware run. See [validation](validation.md) for test results, device evidence and platform coverage.
+
+Not implemented: firmware flashing, factory reset, persistent photo storage, custom watchface installation, audio playback control as a public API, BLE, arbitrary joystick events, undocumented raw command execution, automatic device discovery, or cloud services.

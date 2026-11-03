@@ -1,4 +1,4 @@
-# Architecture / less waiting, more pixels
+# Architecture
 
 ![Runtime architecture](assets/architecture.png)
 
@@ -6,15 +6,21 @@
 
 One UI thread owns cartridge state and renders pixels. External input threads push events and wake that thread with a Tk event. A bounded priority queue gives buttons precedence over ordinary telemetry and status events. Rendering never calls the Bluetooth driver.
 
+Host measurements belong to a separate source worker. A cartridge declares its data sources and sampling interval; the host requests measurements only while that cartridge is visible and unfrozen. Source results become typed events. Reading a disk or a network counter is not performed inside `render()` or a button callback.
+
+The worker holds at most one pending source request. Results carry the subscription generation, so an in-flight read from a page that has since changed or frozen is discarded instead of overwriting the new page's state.
+
 `FramePump` owns the output worker and sink. A producer copies a frame into a one-item mailbox; the worker blocks until that mailbox changes. The sink does complete transactions. `MiniToo` has a separate reader that blocks on `recv()` even while the display is idle, consuming heartbeats and collecting transaction responses.
 
 The Windows bridge receives Next/Previous/Play/Pause through WinRT callbacks and writes JSON lines immediately. Its reader blocks on stdout. Explicit media Play/Pause state changes preserve alternating remote commands; each callback produces one activation.
 
 ## Scheduling
 
-There is no fixed render loop for static screens. `next_delay(now)` returns a deadline or `None`. Animated cartridges request roughly three ticks per second; Pulse requests one sample per second. Button Lab and Signal request no idle timer. Pausing Rain or Orbital cancels animation scheduling.
+There is no fixed render loop for static screens. `next_delay(now)` returns a deadline or `None`. Animated cartridges request roughly three ticks per second. Source sampling has its own cadence: CPU and network once per second, power every five seconds, storage every ten seconds, and the wall clock once per second. Button Lab and Signal request no idle timer. Pausing Rain or Orbital cancels animation scheduling; freezing a source-backed monitor also stops its sampling requests.
 
-Focus stores a monotonic start time and remaining duration. Leaving its page stops animation work; elapsed time still counts, and the correct state is reconciled when the page becomes visible. There is currently no hidden-page completion notification.
+Focus, Stopwatch and Pomodoro use monotonic elapsed time rather than rendered-frame counts. Leaving a running timer stops its visual work; elapsed time still counts, and the state is reconciled when visible again. A clock cartridge instead consumes wall-time events so a timezone change or system clock adjustment does not corrupt a duration timer. There is currently no hidden-page completion notification.
+
+Build Beacon consumes producer events and keeps only the latest build state. A running build may animate a small indicator, but that animation never queries a build system. Finished and idle builds have no animation deadline. Signal Inbox remains a bounded push-only notice buffer.
 
 Output packet pacing, one-shot transmission deadlines and bounded reconnect backoff are intentional waits. They do not poll for button events. Multiple Bluetooth profiles still share hardware resources.
 
@@ -26,8 +32,10 @@ Output packet pacing, one-shot transmission deadlines and bounded reconnect back
 | In-flight image | 1 |
 | Button queue | 32 |
 | Other event queue | 128 |
+| Pending source request | 1 |
 | CPU history | 61 samples |
 | Notifications | 8 × 80 characters |
+| Build state | Latest bounded project / step / status event |
 | JSONL line | 4 KB characters |
 | Receive buffer | 64 KB |
 | Active response queue | 64 packets |
@@ -48,4 +56,6 @@ Stopping closes the output socket, stops the media bridge through stdin, release
 
 ## Porting
 
-The protocol and cartridges depend only on Python and Pillow. Implement a socket-like object with `connect`, `settimeout`, `sendall`, `recv`, `shutdown`, and `close`, and inject its factory into `MiniToo`. A different display can instead implement `show(image)` returning a report containing `transfer_ms`, `close()`, and an optional `healthy` property, then use `FramePump` directly. GUI and WinRT code do not belong in either adapter.
+The protocol and cartridges depend only on Python and Pillow. Optional psutil-backed sources supply network and battery observations; unsupported or missing observations stay unavailable. Clock and storage sources use the standard library. Storage covers at most eight local fixed volumes on Windows and the root filesystem on POSIX hosts. Source dependencies do not enter renderer modules.
+
+Implement a socket-like object with `connect`, `settimeout`, `sendall`, `recv`, `shutdown`, and `close`, and inject its factory into `MiniToo`. A different display can instead implement `show(image)` returning a report containing `transfer_ms`, `close()`, and an optional `healthy` property, then use `FramePump` directly. GUI and WinRT code do not belong in either adapter.

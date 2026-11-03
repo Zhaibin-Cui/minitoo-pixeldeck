@@ -1,11 +1,13 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "date": "2026-11-03",
   "platform": "Windows",
   "python": "3.12.14",
   "pillow": "12.3.0",
   "tk": 8.6,
-  "tests": {"run": 25, "failures": 0, "errors": 0, "skipped": 0, "seconds": 2.972},
+  "tests": {"run": 50, "failures": 0, "errors": 0, "skipped": 0, "seconds": 5.373},
+  "renderers_checked": 15,
+  "native_validation_version": "0.3.0",
   "native_bridge_compiled": true,
   "native_format_self_test": ["Next", "Play", "Pause"],
   "wheel_built": true,
@@ -14,6 +16,14 @@
   "installed_renderer_checked": true,
   "protocol_lab_checked": true,
   "offline_gallery_generated_and_inspected": true,
+  "host_source_checks": {
+    "psutil": "7.2.2",
+    "network_rates_numeric": true,
+    "battery_query_available": true,
+    "storage_volumes": 2,
+    "local_and_utc_clock": true
+  },
+  "new_cartridges_tested_on_device": false,
   "hardware_accessed_by_offline_tests": false,
   "hosted_ci_run": false
 }
