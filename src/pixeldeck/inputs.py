@@ -54,30 +54,141 @@ def build_bridge():
     return output/'MediaBridge.exe'
 
 class MediaInput:
-    def __init__(self, config, callback):
+    """Supervise the blocking native stream with finite, cancellable retries."""
+
+    class _Run:
+        def __init__(self, process, attempt):
+            self.process=process; self.attempt=attempt
+            self.ready=False; self.expired=False; self.ended=False; self.timer=None
+            self.stop_lock=threading.Lock()
+
+    def __init__(self, config, callback, *, process_factory=None, ready_timeout=30.0,
+                 restart_delay=1.0, max_restarts=2, stop_timeout=1.0):
+        for name,value,allow_zero in (('ready_timeout',ready_timeout,False),
+                                      ('restart_delay',restart_delay,True),
+                                      ('stop_timeout',stop_timeout,False)):
+            if not math.isfinite(value) or value<0 or (not allow_zero and value==0):
+                raise ValueError(name+' must be finite and positive'+(' or zero' if allow_zero else ''))
+        if type(max_restarts) is not int or not 0<=max_restarts<=2:
+            raise ValueError('max_restarts must be 0, 1, or 2')
         executable=home()/'native/MediaBridge.exe'
         if not executable.exists(): raise FileNotFoundError('Run pixeldeck build-input first')
         self.closed=False; self.callback=callback
-        self.process=subprocess.Popen([str(executable),config.endpoint,str(Path(__file__).parent/'native/silence.wav')],
-            stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8',bufsize=1,
-            creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        self.process=None; self._run=None
+        self._stop=threading.Event(); self._state_lock=threading.RLock()
+        self._factory=process_factory or subprocess.Popen
+        self._command=[str(executable),config.endpoint,str(Path(__file__).parent/'native/silence.wav')]
+        self._ready_timeout=ready_timeout; self._restart_delay=restart_delay
+        self._max_restarts=max_restarts; self._stop_timeout=stop_timeout
         self.thread=threading.Thread(target=self._read,name='pixeldeck-input',daemon=True); self.thread.start()
-    def _read(self):
+
+    def _emit(self, event, run=None):
+        with self._state_lock:
+            if not self.closed and (run is None or self._run is run): self.callback(event)
+
+    def _launch(self, attempt):
+        with self._state_lock:
+            if self._stop.is_set(): return None
+            process=self._factory(self._command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,text=True,encoding='utf-8',bufsize=1,
+                creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+            run=self._Run(process,attempt); self._run=run; self.process=process
+            run.timer=threading.Timer(self._ready_timeout,self._deadline,args=(run,))
+            run.timer.daemon=True; run.timer.start()
+            return run
+
+    def _deadline(self, run):
+        with self._state_lock:
+            if self.closed or self._run is not run or run.ready or run.ended: return
+            run.expired=True
         try:
-            for line in self.process.stdout:
-                if self.closed: break
-                self.callback(decode_media(line))
-        except Exception as exc:
-            if not self.closed: self.callback({'type':'input.status','kind':'error','message':str(exc)})
+            self._emit({'type':'input.status','kind':'error','ready':False,'attempt':run.attempt,
+                'message':f'Media input did not become ready within {self._ready_timeout:g} s; stopping bridge'},run)
         finally:
-            if not self.closed: self.callback({'type':'input.status','kind':'closed','message':'Media input ended'})
-    def close(self):
-        self.closed=True
+            self._stop_child(run,graceful=False)
+
+    def _stop_child(self, run, *, graceful):
+        """Bound every wait; only this method writes to the child's stdin."""
+        process=run.process
+        with run.stop_lock:
+            if graceful:
+                try:
+                    process.stdin.write('stop\n'); process.stdin.flush()
+                except (OSError,ValueError): pass
+                try: return process.wait(timeout=self._stop_timeout)
+                except subprocess.TimeoutExpired: pass
+            try: process.terminate()
+            except OSError: pass
+            try: return process.wait(timeout=self._stop_timeout)
+            except subprocess.TimeoutExpired:
+                try: process.kill()
+                except OSError: pass
+                try: return process.wait(timeout=self._stop_timeout)
+                except subprocess.TimeoutExpired: return None
+
+    def _read_run(self, run):
+        process=run.process; failure=None
         try:
-            self.process.stdin.write('stop\n'); self.process.stdin.flush()
-        except (OSError,ValueError): pass
-        try: self.process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.process.terminate(); self.process.wait(timeout=5)
-        self.thread.join(timeout=1)
-        self.process.stdin.close(); self.process.stdout.close()
+            try:
+                for line in process.stdout:
+                    with self._state_lock:
+                        if self.closed or self._run is not run or run.expired: break
+                        event=decode_media(line)
+                        if event.get('kind')=='ready':
+                            run.ready=True; run.timer.cancel()
+                        # EOF supplies the exit code and is the authoritative stop event.
+                        if event.get('kind')!='closed': self._emit(event,run)
+            except Exception as exc:
+                failure=f'Media input read failed: {type(exc).__name__}: {str(exc)[:180]}'
+            finally:
+                with self._state_lock:
+                    run.ended=True; run.timer.cancel()
+            if failure or run.expired:
+                code=self._stop_child(run,graceful=False)
+            else:
+                try: code=process.wait(timeout=self._stop_timeout)
+                except subprocess.TimeoutExpired:
+                    failure='Media input output ended while the bridge was still running'
+                    code=self._stop_child(run,graceful=False)
+            readiness='after ready' if run.ready else 'before ready'
+            reason=f'Media bridge exited with code {code if code is not None else "unknown"} {readiness}'
+            if run.expired: reason+=' (readiness deadline expired)'
+            if failure: reason+='; '+failure
+            return reason,code
+        finally:
+            # The reader owns stream disposal: never close stdout during a blocking read.
+            with run.stop_lock:
+                for stream in (process.stdin,process.stdout):
+                    if stream is not None:
+                        try: stream.close()
+                        except (OSError,ValueError): pass
+
+    def _read(self):
+        for attempt in range(1,self._max_restarts+2):
+            run=None; code=None
+            try:
+                run=self._launch(attempt)
+                if run is None: return
+                reason,code=self._read_run(run)
+            except Exception as exc:
+                reason=f'Media bridge could not start: {type(exc).__name__}: {str(exc)[:180]}'
+            if self._stop.is_set(): return
+            detail={'exit_code':code,'ready':bool(run and run.ready),'attempt':attempt}
+            self._emit({'type':'input.status','kind':'error','message':reason,**detail},run)
+            if attempt>self._max_restarts:
+                self._emit({'type':'input.status','kind':'stopped',
+                    'message':f'Media input stopped after {attempt} launch attempts. {reason}',**detail},run)
+                return
+            self._emit({'type':'input.status','kind':'retrying',
+                'message':f'Retrying media input in {self._restart_delay:g} s ({attempt}/{self._max_restarts}). {reason}',
+                **detail},run)
+            if self._stop.wait(self._restart_delay): return
+
+    def close(self):
+        with self._state_lock:
+            if self.closed: return
+            self.closed=True; self._stop.set(); run=self._run
+            if run is not None: run.timer.cancel()
+        if run is not None: self._stop_child(run,graceful=True)
+        if threading.current_thread() is not self.thread:
+            self.thread.join(timeout=self._stop_timeout*3+0.5)

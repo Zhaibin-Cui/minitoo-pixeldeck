@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- Interactive dashboard with five simultaneous host metrics, detail views, back navigation and an explicit exit tile.
+- Persistent preview/live mode and separate display/input status; successful uploads no longer hide media-input errors.
+- Contextual cartridge navigation, desktop Back/Escape and Exit controls.
+- Windows launcher with preview, display and interactive modes, plus redacted pairing/backend diagnostics.
+- Bluetooth compatibility notes distinguish Classic RFCOMM output from media-input support.
+- Experimental receive-only captures for the two observed RFCOMM channels and a separate all-media-event probe.
+- Media bridge startup deadlines, exit-code reporting and at most two retries after unexpected process exit.
+
 ## 0.4.0
 
 - Eight practical cartridges: Net Scope, Volume Vault, Power Cell, Neon Clock, Stopwatch, Pomodoro, Breath Loop and Build Beacon.

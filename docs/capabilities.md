@@ -7,6 +7,9 @@
 | Static-frame suppression | Button Lab, paused Rain | Automatic check |
 | Input while frames transmit | Every interactive cartridge | Blocked-sink concurrency test; predecessor media-input session |
 | Next / Previous / Play / Pause | Navigation + Button Lab + Focus | User-confirmed predecessor session; new binary compiles |
+| Contextual selection, detail and return | Dashboard | Grid/detail state tests; three normalized media actions |
+| Explicit session exit | Dashboard EXIT, desktop Exit / Ctrl+Q | Host cleanup path; last device frame remains |
+| Separate mode and connection status | Desktop host | Preview/live startup checks; independent display/input status |
 | Monotonic time events | Focus Foundry | Elapsed-time and pause/resume checks |
 | CPU and memory | Pulse | Windows provider; Linux implementation not host-tested |
 | Passive network counters | Net Scope | Optional source, bounded history and freeze behavior checks |
@@ -28,6 +31,6 @@
 | Stop and release | Window close / `stop` | Hidden GUI and local IPC integration check |
 | Offline art export | `export`, `build_gallery.py` | Generated gallery inspected locally |
 
-The eight 0.4.0 utility cartridges have separate validation from the earlier seven-cartridge hardware run. See [validation](validation.md) for test results, device evidence and platform coverage.
+Dashboard and the eight 0.4.0 utility cartridges have separate validation from the earlier seven-cartridge hardware run. See [validation](validation.md) for test results, device evidence and platform coverage.
 
 Not implemented: firmware flashing, factory reset, persistent photo storage, custom watchface installation, audio playback control as a public API, BLE, arbitrary joystick events, undocumented raw command execution, automatic device discovery, or cloud services.

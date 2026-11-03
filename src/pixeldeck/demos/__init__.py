@@ -3,9 +3,10 @@ from .cartridges import Pulse, Buddy, Rain, Orbit, Focus, Buttons, Signal
 from .base import Demo
 from .utilities import Clock, Stopwatch, Pomodoro, Breathe
 from .monitors import NetScope, VolumeVault, PowerCell, BuildBeacon
+from .dashboard import Dashboard
 CATALOG = {demo.key: demo for demo in (Pulse, Buddy, Rain, Orbit, Focus, Buttons, Signal,
                                       Clock, Stopwatch, Pomodoro, Breathe,
-                                      NetScope, VolumeVault, PowerCell, BuildBeacon)}
+                                      NetScope, VolumeVault, PowerCell, BuildBeacon, Dashboard)}
 
 def register(demo_class):
     if not isinstance(demo_class, type) or not issubclass(demo_class, Demo):

@@ -1,0 +1,35 @@
+{
+  "version": "0.5.0",
+  "date": "2026-11-03",
+  "platform": "Windows",
+  "adapter_family": "Intel Bluetooth",
+  "demo": "dashboard",
+  "display_enabled": true,
+  "media_input_enabled": true,
+  "session_seconds": 601.43,
+  "acknowledged_frames": 583,
+  "median_transfer_ms": 469.0,
+  "maximum_transfer_ms": 2578.0,
+  "retransmission_requests": 2,
+  "replaced_pending_frames": 3,
+  "link_errors": 0,
+  "source_errors": 0,
+  "media_session_ready": true,
+  "media_buttons_received": {
+    "Next": 4,
+    "Previous": 2,
+    "Pause": 1,
+    "Play": 1
+  },
+  "input_receipt_to_ack_ms": {
+    "samples": 8,
+    "minimum": 469.0,
+    "median": 586.5,
+    "maximum": 860.0
+  },
+  "desktop_buttons_received": 0,
+  "session_closed": true,
+  "operator_feedback": "The original physical Back key was attempted. Up/down and that key are not routed by the current media input bridge; Play/Pause is used for detail return.",
+  "all_visual_transitions_confirmed": false,
+  "note": "ACK timing is not physical-button-to-visible-pixel latency. No other Bluetooth adapters or firmware tested."
+}

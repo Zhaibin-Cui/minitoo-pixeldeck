@@ -9,7 +9,7 @@ from pixeldeck.demos import CATALOG
 from pixeldeck.export import export_demo, specimen
 from pixeldeck.pixels import Canvas, INK, PANEL, LINE, WHITE, CYAN, PINK, MINT, MUTED, GOLD
 OUT=ROOT/'docs/assets'; OUT.mkdir(parents=True,exist_ok=True)
-USEFUL=('network','storage','power','clock','stopwatch','pomodoro','breathe','build')
+USEFUL=('dashboard','network','storage','power','clock','stopwatch','pomodoro','breathe','build')
 
 def text(image,x,y,value,color=WHITE,size=1,center=False):
     c=Canvas(); c.image=image; c.d=ImageDraw.Draw(image); c.text(x,y,value,color,size,center)
@@ -55,7 +55,7 @@ def hero(t=0):
     text(out,817,501,'ORIGINAL RENDER / DEVICE ILLUSTRATION',MUTED,1,True)
     return out
 
-def overview(names=None,title='INSERT A LITTLE PERSONALITY.'):
+def overview(names=None,title='THE CARTRIDGE COLLECTION'):
     names=list(CATALOG if names is None else names)
     rows=math.ceil(len(names)/3)
     height=105+rows*330+82
@@ -69,7 +69,7 @@ def overview(names=None,title='INSERT A LITTLE PERSONALITY.'):
         text(out,x+12,y+277,name,CYAN,2)
     footer=105+rows*330
     d.line((24,footer,1055,footer),fill=LINE,width=2)
-    text(out,26,footer+20,f'{len(names):02} LITTLE WORLDS. ONE TINY API.',PINK,2)
+    text(out,26,footer+20,f'{len(names):02} CARTRIDGES / ONE RENDERING API',PINK,2)
     text(out,26,footer+48,'RENDER / HANDLE / NEXT_DELAY / OPTIONAL DATA SOURCES',MUTED,2)
     return out
 
@@ -90,15 +90,16 @@ def architecture():
     return out
 
 def controls():
-    out=Image.new('RGB',(1080,132),INK); d=ImageDraw.Draw(out)
-    text(out,24,12,'CONTROL SURFACE / DESKTOP PREVIEW',MUTED,2)
-    keys=[('LEFT / RIGHT','SELECT CARTRIDGE',CYAN),('ENTER / SPACE','ACTIVATE',PINK),
-          ('R','RESET SUPPORTED TIMERS',GOLD),('PREVIEW','NO DEVICE REQUIRED',MINT)]
+    out=Image.new('RGB',(1080,218),INK); d=ImageDraw.Draw(out)
+    text(out,24,12,'DESKTOP CONTROLS / CHECK PREVIEW OR LIVE MODE',MUTED,2)
+    keys=[('LEFT / RIGHT','SELECT CARTRIDGE OR TILE',CYAN),('ENTER / SPACE','OPEN / ACTIVATE',PINK),
+          ('ESC','BACK',MINT),('R','RESET SUPPORTED TIMERS',GOLD),
+          ('CTRL + Q','EXIT SESSION',PINK),('PREVIEW / LIVE','OUTPUT MODE IN STATUS',CYAN)]
     for i,(key,action,color) in enumerate(keys):
-        x=24+i*264
-        d.rectangle((x,46,x+239,115),fill=PANEL,outline=LINE,width=2)
-        text(out,x+120,62,key,color,2,True)
-        text(out,x+120,94,action,MUTED,1,True)
+        x=24+(i%3)*352; y=46+(i//3)*82
+        d.rectangle((x,y,x+331,y+69),fill=PANEL,outline=LINE,width=2)
+        text(out,x+166,y+16,key,color,2,True)
+        text(out,x+166,y+48,action,MUTED,1,True)
     return out
 
 if __name__=='__main__':

@@ -1,15 +1,15 @@
 <p align="center"><img src="docs/assets/hero.gif" alt="MiniToo Pixeldeck: a pixel robot on an illustrated desktop device" width="1080"></p>
 
 <p align="center"><strong>A tiny screen with a proper software stack.</strong><br>
-Protocol tools · independent streams · fifteen original pixel cartridges<br>
-Python 3.10+ · Windows hardware backend · MIT · v0.4.0</p>
+Protocol tools · independent streams · sixteen original pixel cartridges<br>
+Python 3.10+ · Windows hardware backend · MIT · v0.5.0</p>
 
 MiniToo Pixeldeck is an independent, unofficial reverse-engineering toolkit for the **Divoom MiniToo**. Send images, build interactive pixel scenes, inspect the protocol, or use the display as a miniature system monitor. No firmware replacement. No cloud account. Importing the package never connects a device.
 
 ```text
 PIXELDECK / DESK INSTRUMENTS
   CANVAS       160 x 128 RGB
-  CARTRIDGES   15 demos
+  CARTRIDGES   16 demos
   INPUT        callbacks + local event streams
   OUTPUT       newest frame wins
   FIRST BOOT   preview / no device required
@@ -74,7 +74,9 @@ pixeldeck run buddy
 
 Or, with Pillow already installed, use `python run.py` instead of `pixeldeck`. The desktop preview needs Tkinter, normally included in python.org Windows installations. Protocol, encoding and headless GIF export do not need Tkinter.
 
-**Left / Right** select a cartridge. **Enter / Space** activates it. **R** resets Stopwatch, Pomodoro and Breath Loop on the desktop. The dropdown and buttons work too. A session defaults to ten minutes; close the window or run `pixeldeck stop`. `--duration 0` disables the time limit; long-term device stability has not been established.
+**Left / Right** select a cartridge, or a tile inside Dashboard. **Enter / Space** activates the current item. **Esc** goes back; **Ctrl+Q** exits. **R** resets Stopwatch, Pomodoro and Breath Loop. The dropdown and on-screen buttons work too. A session defaults to ten minutes; `--duration 0` disables the time limit.
+
+The window always shows its **PREVIEW** or **LIVE** mode. Activate operates the selected demo; it does not enable Bluetooth output. Pairing the device in Windows also does not start frame transmission.
 
 ![Desktop preview controls](docs/assets/controls.png)
 
@@ -93,7 +95,7 @@ Pair the device in Windows Bluetooth settings. Let the phone release its display
 
 ```shell
 pixeldeck configure --address AA:BB:CC:DD:EE:FF --endpoint MiniToo
-pixeldeck run pulse --send
+pixeldeck run dashboard --send
 ```
 
 `configure` writes only to your local `~/.pixeldeck/device.json`. To isolate a session, set `PIXELDECK_HOME` to a private directory. The example configuration in this repository contains no device identity.
@@ -102,10 +104,26 @@ For the device's supported media buttons:
 
 ```shell
 pixeldeck build-input
-pixeldeck run buttons --send --media
+pixeldeck run dashboard --send --media
 ```
 
-The bridge is compiled locally from included C# source; it is not downloaded. It requires Windows PowerShell, the .NET Framework compiler and Windows WinMetadata. The configured endpoint must match exactly one speaker output. Left/right media actions select cartridges; Play and Pause both map to one activation. Joystick up/down/center and all other device keys are **not** exposed by this toolkit. Some native device modes consume buttons locally.
+The bridge is compiled locally from included C# source. It requires Windows PowerShell, the .NET Framework compiler and Windows WinMetadata. The configured endpoint must match exactly one speaker output. It provides three actions: previous, next and activate (both Play and Pause). Dashboard uses them to select and open tiles; other cartridges use previous/next for navigation. Joystick up/down/center and a device Back key are **not** exposed by this toolkit. Some native device modes consume buttons locally.
+
+| Start mode | Display output | Input |
+|---|---|---|
+| `pixeldeck run dashboard` | Desktop preview only | Desktop controls |
+| `pixeldeck run dashboard --send` | Desktop + Bluetooth display | Desktop controls |
+| `pixeldeck run dashboard --send --media` | Desktop + Bluetooth display | Desktop + supported media actions |
+
+Display and input have separate status lines. A successful frame upload does not confirm that the media input session is ready. Bluetooth compatibility depends on Classic RFCOMM and the Windows media-profile path, not the adapter's version label alone; see [compatibility and diagnostics](docs/usage.md#bluetooth-compatibility).
+
+On Windows, [launch.ps1](launch.ps1) offers the same three modes. It defaults to Preview and does not install dependencies automatically:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Interactive -Demo dashboard
+```
+
+Use `-Mode Display` for output without device input, or add `-Check` for redacted diagnostics without connecting. [Launcher options →](docs/usage.md#windows-launcher)
 
 ### 3. Send, export and push
 
@@ -135,7 +153,7 @@ These are **real program renders**, not concept art. Gallery GIFs are exported o
 
 | What belongs on your desk? | Start here |
 |---|---|
-| A small system instrument | `pulse` · `network` · `storage` · `power` |
+| A small system instrument | `dashboard` · `pulse` · `network` · `storage` · `power` |
 | Time with a physical presence | `clock` · `stopwatch` · `pomodoro` · `focus` · `breathe` |
 | A glanceable event signal | `build` · `signal` |
 | Animated pixel scenes | `buddy` · `rain` · `orbit` |
@@ -143,9 +161,21 @@ These are **real program renders**, not concept art. Gallery GIFs are exported o
 
 Every preview is reproducible: [cartridge registry](src/pixeldeck/demos/__init__.py) → [export code](src/pixeldeck/export.py) → [gallery builder](tools/build_gallery.py). [Full contact sheet →](docs/assets/gallery.png)
 
+### Dashboard
+
+<img src="docs/assets/dashboard.gif" alt="Dashboard grid, metric selection and enlarged CPU detail" width="480">
+
+CPU, memory, network, storage and power share one overview, with a sixth **EXIT** tile. Left / Right moves the selection; Activate opens a metric. In detail view, Left / Right changes metrics and Activate or desktop Back / Esc returns to the grid. On the MiniToo, **Play / Pause opens and returns**; joystick up/down and the original Back key are unsupported. Desktop Back / Esc from the grid returns to Bit Buddy.
+
+```shell
+pixeldeck run dashboard --send --media
+```
+
+The EXIT tile, desktop Exit button or Ctrl+Q closes Pixeldeck and releases its connections. The device keeps the last displayed frame; exit does not restore its native menu. The demo also works in preview mode without either flag.
+
 ### System monitors and desk tools
 
-Eight new cartridges for monitoring, timing and pushed events. [View the utility collection together →](docs/assets/useful-demos.png)
+Individual cartridges for monitoring, timing and pushed events. [View the utility collection together →](docs/assets/useful-demos.png)
 
 | Net Scope | Volume Vault | Power Cell |
 |:--:|:--:|:--:|
@@ -218,11 +248,13 @@ For an interactive version and registration, run [custom_cartridge.py](examples/
 
 - Offline checks cover framing, fragmented input, ACK loss, retransmission, bounded heartbeats, queue replacement, idle reconnect, utility state machines, data subscriptions, pushed events and hidden GUI shutdown. The current counts and results are recorded in [validation](docs/validation.md).
 - A preceding hardware session using the same media-command approach completed **401 acknowledged frames** over about ten minutes, with **296 ms median transfer time**, no logged transfer failures, and user-confirmed single-press counting and timer controls.
-- The **0.3.0** driver acknowledged **24 frames across the original seven demo renderers**, with **390.5 ms median transfer time** and no retransmission requests. This earlier display-only check does not certify the eight new 0.4.0 cartridges, media input or long runs. ACK latency does not measure the instant pixels become visible. [Validation details →](docs/validation.md)
+- The **0.3.0** driver acknowledged **24 frames across the original seven demo renderers**, with **390.5 ms median transfer time** and no retransmission requests. This earlier display-only check does not certify later cartridges, media input or long runs. ACK latency does not measure the instant pixels become visible. [Validation details →](docs/validation.md)
 - Live uploads do not call gallery or firmware-write commands. Firmware-side memory/storage behavior, overnight endurance and simultaneous phone music remain unverified.
 - Windows is the bundled hardware backend. Preview/rendering/protocol code is portable. CPU/memory have built-in Windows and Linux providers; other platforms show unavailable values for those fields. Optional network/battery measurements depend on what the host OS and psutil report. A supported API is not a claim that every platform has been exercised.
 
 ## Development
+
+Raw joystick work is tracked separately in [input investigation](docs/input-research.md). Experimental receivers capture evidence; they do not add unverified Up/Down/Back mappings to normal demos.
 
 ```shell
 python -m unittest discover -s tests -v

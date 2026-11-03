@@ -1,15 +1,16 @@
 {
-  "version": "0.4.0",
+  "version": "0.5.0",
   "date": "2026-11-03",
   "platform": "Windows",
   "python": "3.12.14",
   "pillow": "12.3.0",
   "tk": 8.6,
-  "tests": {"run": 50, "failures": 0, "errors": 0, "skipped": 0, "seconds": 5.373},
-  "renderers_checked": 15,
-  "native_validation_version": "0.3.0",
+  "tests": {"run": 96, "failures": 0, "errors": 0, "skipped": 0, "seconds": 8.976},
+  "renderers_checked": 16,
+  "native_validation_version": "0.5.0",
   "native_bridge_compiled": true,
   "native_format_self_test": ["Next", "Play", "Pause"],
+  "native_startup_reliability": "intermittent crashes observed; see validation.md",
   "wheel_built": true,
   "wheel_isolated_install": true,
   "installed_native_source_and_audio_present": true,
@@ -23,7 +24,8 @@
     "storage_volumes": 2,
     "local_and_utc_clock": true
   },
-  "new_cartridges_tested_on_device": false,
+  "dashboard_device_ack_check": true,
+  "utility_cartridges_0_4_tested_on_device": false,
   "hardware_accessed_by_offline_tests": false,
   "hosted_ci_run": false
 }

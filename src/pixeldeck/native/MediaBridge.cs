@@ -12,6 +12,8 @@ using Windows.Foundation;
 public sealed class MediaBridge : IDisposable
 {
     private readonly MediaPlayer player;
+    private readonly MediaPlaybackCommandManager commands;
+    private readonly MediaPlaybackItem item;
     private static readonly object outputLock = new object();
     private static long sequence;
     private readonly ManualResetEvent stop;
@@ -42,6 +44,7 @@ public sealed class MediaBridge : IDisposable
     public MediaBridge(string endpointHint, string wavePath, ManualResetEvent stopEvent)
     {
         stop = stopEvent;
+        Emit("stage", "endpoint_lookup");
         var operation = DeviceInformation.FindAllAsync(DeviceClass.AudioRender);
         using (var ready = new ManualResetEvent(false))
         {
@@ -61,11 +64,12 @@ public sealed class MediaBridge : IDisposable
             { selected = device; matches++; }
         }
         if (matches != 1) throw new Exception("Configure audio_endpoint_hint to match exactly one MiniToo speaker output");
+        Emit("stage", "endpoint_matched");
         player = new MediaPlayer();
         player.AudioDevice = selected;
         player.IsMuted = true;
         player.IsLoopingEnabled = true;
-        var commands = player.CommandManager;
+        commands = player.CommandManager;
         commands.IsEnabled = true;
         commands.NextBehavior.EnablingRule = MediaCommandEnablingRule.Always;
         commands.PreviousBehavior.EnablingRule = MediaCommandEnablingRule.Always;
@@ -79,23 +83,28 @@ public sealed class MediaBridge : IDisposable
         commands.PauseReceived += (sender, args) => { args.Handled = true; player.Pause(); Emit("button", "Pause"); };
         player.MediaFailed += (sender, args) => { Emit("error", args.ErrorMessage); stop.Set(); };
         player.MediaOpened += (sender, args) => Emit("ready", selected.Name);
-        var item = new MediaPlaybackItem(MediaSource.CreateFromUri(new Uri(Path.GetFullPath(wavePath))));
+        Emit("stage", "controls_configured");
+        item = new MediaPlaybackItem(MediaSource.CreateFromUri(new Uri(Path.GetFullPath(wavePath))));
         var properties = item.GetDisplayProperties();
         properties.Type = MediaPlaybackType.Music;
         properties.MusicProperties.Title = "MiniToo Pixeldeck";
         properties.MusicProperties.Artist = "Silent input session";
         item.ApplyDisplayProperties(properties);
         player.Source = item;
+        Emit("stage", "source_assigned");
         player.Play();
+        Emit("stage", "play_requested");
     }
 
     public void Dispose()
     {
         if (player != null)
         {
+            if (commands != null) commands.IsEnabled = false;
             player.SystemMediaTransportControls.IsEnabled = false;
             player.Dispose();
         }
+        GC.KeepAlive(item);
     }
 
     [MTAThread]

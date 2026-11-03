@@ -10,6 +10,8 @@ A data-backed cartridge can declare `sources = ("network",)` and `source_interva
 
 Use `supports_reset = True` for a cartridge that handles the desktop button event `{"type":"button","button":"reset"}`. Distinguish that action from `activate`; do not increment a counter or toggle playback on every event whose type happens to be `button`.
 
+For a nested interface, set `captures_navigation = True` and handle `previous`, `next` and `back` button events as well as `activate`. Dashboard shows this pattern: selection and detail state remain inside the cartridge. Return `"leave"` from `handle` to return to Bit Buddy, or `"exit"` after an explicit exit action to request host shutdown. Keep connection cleanup in the host.
+
 ## A direct image sender
 
 ```python

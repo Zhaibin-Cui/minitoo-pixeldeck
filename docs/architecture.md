@@ -6,6 +6,10 @@
 
 One UI thread owns cartridge state and renders pixels. External input threads push events and wake that thread with a Tk event. A bounded priority queue gives buttons precedence over ordinary telemetry and status events. Rendering never calls the Bluetooth driver.
 
+The host keeps the requested PREVIEW / LIVE mode visible and reports display and input health separately. Display acknowledgments never replace an input failure message. Connecting is a startup choice, not a cartridge activation.
+
+Most cartridges leave previous/next navigation to `Deck`. A cartridge with `captures_navigation = True` receives previous, next and back itself. Dashboard uses this for its grid and detail pages; it returns `leave` to select Bit Buddy or `exit` to request host shutdown. The renderer never closes hardware directly.
+
 Host measurements belong to a separate source worker. A cartridge declares its data sources and sampling interval; the host requests measurements only while that cartridge is visible and unfrozen. Source results become typed events. Reading a disk or a network counter is not performed inside `render()` or a button callback.
 
 The worker holds at most one pending source request. Results carry the subscription generation, so an in-flight read from a page that has since changed or frozen is discarded instead of overwriting the new page's state.
@@ -16,7 +20,7 @@ The Windows bridge receives Next/Previous/Play/Pause through WinRT callbacks and
 
 ## Scheduling
 
-There is no fixed render loop for static screens. `next_delay(now)` returns a deadline or `None`. Animated cartridges request roughly three ticks per second. Source sampling has its own cadence: CPU and network once per second, power every five seconds, storage every ten seconds, and the wall clock once per second. Button Lab and Signal request no idle timer. Pausing Rain or Orbital cancels animation scheduling; freezing a source-backed monitor also stops its sampling requests.
+There is no fixed render loop for static screens. `next_delay(now)` returns a deadline or `None`. Animated cartridges request roughly three ticks per second. Source sampling has its own cadence: CPU and network once per second, power every five seconds, storage every ten seconds, and the wall clock once per second in their individual cartridges. Dashboard requests its combined sources once per second. Button Lab and Signal request no idle timer. Pausing Rain or Orbital cancels animation scheduling; freezing a source-backed monitor also stops its sampling requests.
 
 Focus, Stopwatch and Pomodoro use monotonic elapsed time rather than rendered-frame counts. Leaving a running timer stops its visual work; elapsed time still counts, and the state is reconciled when visible again. A clock cartridge instead consumes wall-time events so a timezone change or system clock adjustment does not corrupt a duration timer. There is currently no hidden-page completion notification.
 
@@ -52,7 +56,7 @@ The device name is checked against the configured paired address before the buil
 
 Each upload waits for READY, sends 256-byte chunks, handles chunk requests and waits for completion. A transaction watchdog closes a blocked connection. `FramePump` retries a finite number of times, chooses the latest state after a failure and pauses output when the budget is exhausted. Idle disconnection wakes the pump through the reader callback.
 
-Stopping closes the output socket, stops the media bridge through stdin, releases local control IPC, joins the output worker and releases the instance lock. Nothing is saved to the device's gallery as an exit action.
+Stopping closes the output socket, stops the media bridge through stdin, releases local control IPC, joins the workers and releases the instance lock. Dashboard's EXIT tile uses the same path as the desktop Exit control. The last displayed frame remains on the device; no gallery save or native-menu restoration is sent on exit.
 
 ## Porting
 

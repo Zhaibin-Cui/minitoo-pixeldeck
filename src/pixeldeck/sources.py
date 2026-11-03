@@ -32,7 +32,8 @@ class MetricReader:
     def read(self, name):
         if name=='telemetry':
             if self.cpu is None: self.cpu=Telemetry()
-            return self.cpu.sample()
+            event=self.cpu.sample(); event['sampled_at']=self.clock()
+            return event
         if name=='wallclock':
             now=datetime.now(timezone.utc)
             return {'type':'wallclock','local':now.astimezone().isoformat(),'utc':now.isoformat()}

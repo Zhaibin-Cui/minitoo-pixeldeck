@@ -6,8 +6,8 @@ from .demos import create
 
 def specimen(name, now=0):
     demo=create(name)
-    if name=='pulse':
-        for i in range(61): demo.handle({'type':'telemetry','cpu':22+(i*7)%48,'memory':43},i)
+    if name in ('pulse','dashboard'):
+        for i in range(61): demo.handle({'type':'telemetry','cpu':22+(i*7)%48,'memory':43,'sampled_at':i-60},i-60)
     if name=='focus': demo.handle({'type':'button','button':'activate'},0)
     if name=='signal': demo.handle({'type':'notice','text':'HELLO FROM THE OTHER SIDE'},0)
     if name=='buttons':
@@ -18,14 +18,14 @@ def specimen(name, now=0):
     if name in ('stopwatch','pomodoro','breathe'):
         start={'stopwatch':-123.25,'pomodoro':-810,'breathe':-2}[name]
         demo.handle({'type':'button','button':'activate'},start)
-    if name=='network':
+    if name in ('network','dashboard'):
         for i in range(61):
             demo.handle({'type':'network','available':True,'rx_bps':350000+(i*79000)%1800000,'tx_bps':60000+(i*11000)%260000},i)
-    if name=='storage':
+    if name in ('storage','dashboard'):
         demo.handle({'type':'storage','available':True,'volumes':[
             {'label':'SYSTEM','total':512*2**30,'free':184*2**30},
             {'label':'ARCHIVE','total':2*2**40,'free':int(1.2*2**40)}]},0)
-    if name=='power':
+    if name in ('power','dashboard'):
         demo.handle({'type':'power','available':True,'present':True,'percent':67,'plugged':False,'seconds_left':9060},0)
     if name=='build':
         demo.handle({'type':'build','project':'PIXEL ENGINE','state':'running','progress':64,'step':'COMPILE SHADERS'},0)
@@ -35,11 +35,12 @@ def frames(name,seconds=4,fps=8):
     demo=specimen(name)
     for index in range(seconds*fps):
         now=index/fps
-        if name=='pulse': demo.handle({'type':'telemetry','cpu':25+(index*3)%42,'memory':43},now)
+        if name in ('pulse','dashboard'):
+            demo.handle({'type':'telemetry','cpu':25+(index*3)%42,'memory':43+index//8,'sampled_at':now},now)
         if name=='clock':
             utc=datetime(2026,11,3,12,18,35,tzinfo=timezone.utc)+timedelta(seconds=now)
             demo.handle({'type':'wallclock','local':utc.astimezone(timezone(timedelta(hours=8))).isoformat(),'utc':utc.isoformat()},now)
-        if name=='network':
+        if name in ('network','dashboard'):
             demo.handle({'type':'network','available':True,'rx_bps':600000+(index*120000)%1300000,'tx_bps':100000+(index*17000)%250000},now)
         if name=='build':
             progress=min(100,64+index*2)
@@ -47,6 +48,8 @@ def frames(name,seconds=4,fps=8):
                          'step':'CHECKS COMPLETE' if progress==100 else 'COMPILE SHADERS'},now)
         if name=='storage' and index==16: demo.handle({'type':'button','button':'activate'},now)
         if name=='power' and index==16: demo.handle({'type':'button','button':'activate'},now)
+        if name=='dashboard' and index in (8,16,24):
+            demo.handle({'type':'button','button':{8:'activate',16:'next',24:'back'}[index]},now)
         demo.handle({'type':'tick'},now)
         yield demo.render(now)
 

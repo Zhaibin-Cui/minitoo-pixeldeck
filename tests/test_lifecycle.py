@@ -9,6 +9,27 @@ from pixeldeck.config import DeviceConfig
 
 @unittest.skipUnless(os.name=='nt','Windows GUI integration')
 class LifecycleTests(unittest.TestCase):
+    def test_dashboard_navigation_and_exit_releases_sources(self):
+        from pixeldeck.app import Application
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(os.environ,{'PIXELDECK_HOME':directory}):
+                app=Application(DeviceConfig(),demo='dashboard',duration=0)
+                app.root.withdraw(); expired=[]
+                actions=['next','activate','back','previous','previous','activate']
+                def drive():
+                    action=actions.pop(0)
+                    if actions: app.root.after(80,drive)
+                    else: app.root.after_cancel(deadline)
+                    app.button(action)
+                def watchdog(): expired.append(True); app.close()
+                app.root.after(50,drive); deadline=app.root.after(5000,watchdog)
+                app.run()
+                self.assertFalse(expired,'EXIT action did not close the host')
+                self.assertEqual(app.health.input_count,6)
+                self.assertTrue(app.lock.file.closed)
+                self.assertFalse(app.source_worker.thread.is_alive())
+                self.assertFalse((Path(directory)/'control.json').exists())
+
     def test_twenty_actions_then_stop_and_release(self):
         from pixeldeck.app import Application
         from pixeldeck.control import stop

@@ -10,6 +10,7 @@ class Demo:
     sources = ()
     source_interval = 1.0
     supports_reset = False
+    captures_navigation = False
     def handle(self, event, now): pass
     def next_delay(self, now): return None
     def render(self, now): raise NotImplementedError

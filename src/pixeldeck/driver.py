@@ -13,9 +13,12 @@ class MiniToo:
     Public methods serialize complete transactions. Receives never run on the sender.
     Windows is the only bundled hardware backend; the protocol is platform-neutral.
     """
-    def __init__(self, config: DeviceConfig, socket_factory=None, on_disconnect=None):
+    def __init__(self, config: DeviceConfig, socket_factory=None, on_disconnect=None, packet_tap=None,
+                 channel=1, decode_packets=True):
         if not config.address:
             raise ValueError("Configure a paired device address before connecting")
+        if type(channel) is not int or not 1 <= channel <= 30:
+            raise ValueError("RFCOMM channel must be 1..30")
         self.config = config
         self.trace = deque(maxlen=32)
         self._decoder = Decoder()
@@ -26,6 +29,8 @@ class MiniToo:
         self._closed = False
         self._active = False
         self._on_disconnect = on_disconnect
+        self._packet_tap = packet_tap
+        self._decode_packets = decode_packets
         if socket_factory is None:
             if os.name != "nt":
                 raise RuntimeError("Hardware backend currently supports Windows; use preview or inject a socket factory")
@@ -41,10 +46,12 @@ class MiniToo:
         self._socket = socket_factory()
         try:
             self._socket.settimeout(config.timeout)
-            self._socket.connect((config.address, 1))
+            self._socket.connect((config.address, channel))
             self._socket.settimeout(None)
         except Exception:
             self._socket.close()
+            if self._packet_tap is not None:
+                self._packet_tap.close()
             raise
         self._reader = threading.Thread(target=self._read, name="pixeldeck-rx", daemon=True)
         self._reader.start()
@@ -59,7 +66,13 @@ class MiniToo:
                 data = self._socket.recv(4096)
                 if not data:
                     raise ConnectionError("Device disconnected")
+                if self._packet_tap is not None:
+                    self._packet_tap.put_bytes(data)
+                if not self._decode_packets:
+                    continue
                 for raw in self._decoder.feed(data):
+                    if self._packet_tap is not None:
+                        self._packet_tap.put(raw)
                     self.trace.append(raw.hex())
                     if raw[3:6] == HEARTBEAT_PREFIX:
                         continue
@@ -75,6 +88,9 @@ class MiniToo:
                 self._condition.notify_all()
             if not self._closed and self._on_disconnect:
                 self._on_disconnect(exc)
+        finally:
+            if self._packet_tap is not None:
+                self._packet_tap.close()
 
     def _receive(self, deadline):
         with self._condition:
@@ -89,6 +105,8 @@ class MiniToo:
             raise TimeoutError("Device acknowledgment timed out")
 
     def _transaction(self, operation, budget):
+        if not self._decode_packets:
+            raise RuntimeError("Transactions are disabled on a receive-only raw connection")
         with self._lock:
             with self._condition:
                 if not self.healthy:
@@ -159,6 +177,8 @@ class MiniToo:
                 return
             self._closed = True
             self._condition.notify_all()
+        if self._packet_tap is not None:
+            self._packet_tap.close()
         try:
             self._socket.shutdown(socket.SHUT_RDWR)
         except OSError:

@@ -18,7 +18,9 @@ pixeldeck doctor
 pixeldeck run buddy
 ```
 
-默认只预览，不连接设备。左右方向键切换 demo，Enter 或空格操作。秒表、番茄钟和 Breath Loop 可在电脑上按 R 重置。也可以用窗口按钮。
+默认只预览，不连接设备。窗口会一直显示 PREVIEW 或 LIVE 模式。Activate 只操作当前 demo，不负责连接蓝牙；Windows 显示“已配对”也不代表程序正在传图。
+
+左右方向键切换 demo，在 Dashboard 内则选择监控项目。Enter 或空格操作，Esc / Back 返回，Ctrl+Q / Exit 退出。秒表、番茄钟和 Breath Loop 可在电脑上按 R 重置。也可以用窗口按钮。
 
 需要网络吞吐量和电池信息时，安装可选依赖：
 
@@ -33,7 +35,7 @@ Windows 配对 MiniToo 后，填写自己的设备地址：
 
 ```shell
 pixeldeck configure --address AA:BB:CC:DD:EE:FF
-pixeldeck run pulse --send
+pixeldeck run dashboard --send
 ```
 
 手机需要释放屏幕控制连接。地址只是格式示例，本仓库不含真实设备配置。设置保存在用户目录的 `.pixeldeck` 中；`PIXELDECK_HOME` 可以指定其他私人运行目录。
@@ -42,15 +44,42 @@ pixeldeck run pulse --send
 
 ```shell
 pixeldeck build-input
-pixeldeck run buttons --send --media
+pixeldeck run dashboard --send --media
 ```
 
-这里会建立指定设备上的静音媒体会话。左右媒体操作切页，播放／暂停都对应一次操作。摇杆上、下、中央按下不属于已支持的输入。手机放歌与电脑显示并行需要单独验证。
+这里会建立指定设备上的静音媒体会话。工具只接收“上一个、下一个、操作”三种动作，播放和暂停都归一为一次操作。摇杆上、下、中央按下和机身返回键不属于已支持的输入。手机放歌与电脑显示并行需要单独验证。
 
-## 十五张小卡带
+| 启动方式 | 画面 | 输入 |
+|---|---|---|
+| `pixeldeck run dashboard` | 只在电脑预览 | 电脑键盘和窗口按钮 |
+| `pixeldeck run dashboard --send` | 电脑预览，同时蓝牙传图 | 电脑键盘和窗口按钮 |
+| `pixeldeck run dashboard --send --media` | 电脑预览，同时蓝牙传图 | 电脑操作，加上已支持的机身媒体动作 |
+
+传图状态和输入状态分别显示。传图 ACK 成功不能证明机身按键已经接通。可以用 `pixeldeck run buttons --send --media` 单独检查按一次是否加一。
+
+Windows 也可使用仓库内的启动脚本：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Interactive -Demo dashboard
+```
+
+`-Mode Preview` 只预览，`-Mode Display` 只增加传图，`-Mode Interactive` 同时接入媒体按键。默认是 Preview / dashboard；脚本不会自动安装依赖。加 `-Check` 只检查脱敏后的本地配置和依赖，不连接设备。其他参数见 [启动器说明](usage.md#windows-launcher)。
+
+蓝牙兼容性需要看 Classic RFCOMM、Windows 媒体配置和驱动是否可用，不能仅凭“蓝牙 4.x / 5.x”判断。当前真机证据只覆盖记录中的电脑与设备组合；[兼容性说明及微软资料](usage.md#bluetooth-compatibility) 列出了具体要求。`pixeldeck doctor` 不会连接设备，因此不能代替实际传图和按键验证。
+
+## Dashboard 操作
+
+![Dashboard 选择与详情](assets/dashboard.gif)
+
+总览有 CPU、MEMORY、NETWORK、STORAGE、POWER 和 EXIT 六格。左右选择，Activate 打开详情；详情中左右切换指标，再按 Activate 或电脑 Back / Esc 回总览。机身用**播放／暂停键打开和返回**，不支持摇杆上下和原机返回键。总览里按电脑 Back / Esc 回到 Bit Buddy。
+
+选中 EXIT 后操作，或用窗口 Exit / Ctrl+Q，会关闭电脑端程序并释放连接。设备保留最后一帧，不会自动跳回原机菜单。这些选择、放大和返回操作也能通过已支持的三种媒体动作完成。
+
+## 十六张小卡带
 
 | 名称 | 内容 | 操作 |
 |---|---|---|
+| dashboard | CPU、内存、网络、磁盘、电源总览 | 选择、放大、返回，EXIT 退出 |
 | pulse | CPU 曲线、内存用量 | 冻结／恢复 |
 | buddy | 像素小伙伴 | 打招呼、冒爱心 |
 | rain | 霓虹字符雨 | 暂停／继续 |

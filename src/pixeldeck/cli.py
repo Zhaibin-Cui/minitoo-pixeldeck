@@ -15,7 +15,8 @@ def main():
     parser.add_argument('--version',action='version',version=__version__)
     commands=parser.add_subparsers(dest='command',required=True)
     commands.add_parser('list',help='List bundled cartridges')
-    commands.add_parser('doctor',help='Inspect local dependencies without touching hardware')
+    doctor=commands.add_parser('doctor',help='Inspect local dependencies and cached pairing without connecting')
+    doctor.add_argument('--config')
     commands.add_parser('build-input',help='Compile the Windows media-event bridge')
     commands.add_parser('stop',help='Release the running session through local IPC')
     config=commands.add_parser('configure'); config.add_argument('--address',required=True); config.add_argument('--endpoint',default='MiniToo')
@@ -41,11 +42,12 @@ def main():
     if args.command=='doctor':
         import importlib.util
         import PIL
-        print(json.dumps({'version':__version__,'python':sys.version.split()[0],'pillow':PIL.__version__,
-          'tkinter':importlib.util.find_spec('tkinter') is not None,'hardware_backend':'Windows RFCOMM',
-          'telemetry_extra':importlib.util.find_spec('psutil') is not None,
-          'input_built':(home()/'native/MediaBridge.exe').exists(),'device_configured':bool(DeviceConfig.load().address),
-          'hardware_accessed':False},indent=2)); return
+        from .diagnostics import report
+        result=report(DeviceConfig.load(args.config))
+        result.update({'version':__version__,'python':sys.version.split()[0],'pillow':PIL.__version__,
+          'tkinter':importlib.util.find_spec('tkinter') is not None,
+          'telemetry_extra':importlib.util.find_spec('psutil') is not None})
+        print(json.dumps(result,indent=2)); return
     if args.command=='build-input':
         from .inputs import build_bridge
         print(build_bridge()); return
@@ -60,6 +62,8 @@ def main():
     if args.command=='run':
         if not 0<=args.duration<=86400: parser.error('duration must be 0..86400; 0 means until closed')
         if args.media and not args.send: parser.error('--media requires --send')
+        if args.send and not config.address:
+            parser.error('No device configured. Run configure --address YOUR_ADDRESS or supply --config PRIVATE_FILE. Preview alone does not update the MiniToo.')
         from .app import Application
         Application(config,args.demo,args.send,args.media,args.stdin,args.duration).run(); return
     home().mkdir(parents=True,exist_ok=True)

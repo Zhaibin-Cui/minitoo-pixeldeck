@@ -8,7 +8,7 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 DIRECTORIES={'src','tests','docs','examples','tools','.github'}
-FILES={'README.md','LICENSE','CONTRIBUTING.md','CHANGELOG.md','pyproject.toml','run.py','.gitignore','.gitattributes'}
+FILES={'README.md','LICENSE','CONTRIBUTING.md','CHANGELOG.md','pyproject.toml','run.py','launch.ps1','.gitignore','.gitattributes'}
 BINARY={'.png','.gif','.wav'}
 TEXT={'.py','.md','.toml','.json','.cs','.ps1','.yml','.yaml','.txt'}
 PATTERNS={
