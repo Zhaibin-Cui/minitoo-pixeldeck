@@ -13,6 +13,11 @@ license = {text = "MIT"}
 dependencies = ["Pillow>=10,<13"]
 keywords = ["minitoo", "pixel-art", "bluetooth", "reverse-engineering"]
 
+[project.urls]
+Repository = "https://github.com/Zhaibin-Cui/minitoo-pixeldeck"
+Documentation = "https://github.com/Zhaibin-Cui/minitoo-pixeldeck#readme"
+Issues = "https://github.com/Zhaibin-Cui/minitoo-pixeldeck/issues"
+
 [project.optional-dependencies]
 telemetry = ["psutil>=5.9,<8"]
 audio = ["sounddevice>=0.5,<0.6"]

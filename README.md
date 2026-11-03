@@ -82,6 +82,8 @@ See the [runtime pipeline and resource bounds](docs/architecture.md), [API recip
 For the full Windows setup, use Python 3.11+ from a source checkout:
 
 ```powershell
+git clone https://github.com/Zhaibin-Cui/minitoo-pixeldeck.git
+cd minitoo-pixeldeck
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio,display]"
 .\.venv\Scripts\pixeldeck.exe doctor
