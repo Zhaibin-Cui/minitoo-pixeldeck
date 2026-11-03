@@ -29,7 +29,9 @@ class SessionStatus:
             self.input_state = state if state in ('ready','error','retrying','stopped','closed') else 'starting'
             if state == 'ready':
                 self.input_error = None
-                self.input = 'INPUT / Media session ready; awaiting a button'
+                backend = event.get('backend')
+                label = f' ({backend})' if backend in ('winrt','legacy') else ''
+                self.input = 'INPUT / Media session ready'+label+'; awaiting a button'
             elif state == 'error':
                 self.input_error = str(event.get('message', 'Media input failed'))[:150]
                 self.input = 'INPUT / ERROR: ' + self.input_error

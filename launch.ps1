@@ -5,6 +5,10 @@ param(
     [string]$Config = '',
     [string]$RuntimeDirectory = '',
     [ValidateRange(0, 86400)][int]$Duration = 600,
+    [ValidateSet('Auto', 'WinRT', 'Legacy')][string]$InputBackend = 'Auto',
+    [switch]$Audio,
+    [ValidateRange(-1, 65535)][int]$AudioInput = -1,
+    [ValidateRange(-1, 65535)][int]$AudioOutput = -1,
     [switch]$Check
 )
 $ErrorActionPreference = 'Stop'
@@ -43,15 +47,24 @@ try {
             throw 'This Python/Windows environment does not expose the required Classic RFCOMM backend.'
         }
     }
-    if ($Mode -eq 'Interactive' -and -not $report.media_input.bridge_built) {
-        & $Python $entry build-input
-        if ($LASTEXITCODE -ne 0) { throw 'Media bridge build failed. Use -Mode Display for desktop-only controls.' }
+    if ($Mode -eq 'Interactive') {
+        $selectedBackend = $InputBackend.ToLowerInvariant()
+        if ($selectedBackend -eq 'auto') {
+            $selectedBackend = if ($report.media_input.winrt.available) { 'winrt' } else { 'legacy' }
+        }
+        if ($selectedBackend -eq 'winrt' -or -not $report.media_input.bridge_built) {
+            & $Python $entry build-input --backend $selectedBackend
+            if ($LASTEXITCODE -ne 0) { throw 'Input preparation failed. Install .[windows-input] with Python 3.11+ or select -InputBackend Legacy.' }
+        }
     }
     Write-Host "Pixeldeck mode: $Mode / demo: $Demo"
     if ($Mode -eq 'Preview') { Write-Host 'Desktop preview only. The MiniToo screen will not change.' }
     $runArgs = @($entry, 'run', $Demo, '--duration', $Duration)
     if ($Mode -ne 'Preview') { $runArgs += '--send' }
-    if ($Mode -eq 'Interactive') { $runArgs += '--media' }
+    if ($Mode -eq 'Interactive') { $runArgs += @('--media', '--input-backend', $selectedBackend) }
+    if ($Audio) { $runArgs += '--audio' }
+    if ($AudioInput -ge 0) { $runArgs += @('--audio-input', $AudioInput) }
+    if ($AudioOutput -ge 0) { $runArgs += @('--audio-output', $AudioOutput) }
     if ($Config) { $runArgs += @('--config', $Config) }
     & $Python @runArgs
     if ($LASTEXITCODE -ne 0) { throw 'Pixeldeck stopped with an error. See the message above.' }

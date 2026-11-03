@@ -1,15 +1,25 @@
 {
-  "version": "0.5.0",
+  "version": "0.6.0",
   "date": "2026-11-03",
   "platform": "Windows",
   "python": "3.12.14",
   "pillow": "12.3.0",
   "tk": 8.6,
-  "tests": {"run": 96, "failures": 0, "errors": 0, "skipped": 0, "seconds": 8.976},
-  "renderers_checked": 16,
+  "tests": {
+    "run": 178,
+    "seconds": 20.819,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0
+  },
+  "renderers_checked": 18,
   "native_validation_version": "0.5.0",
   "native_bridge_compiled": true,
-  "native_format_self_test": ["Next", "Play", "Pause"],
+  "native_format_self_test": [
+    "Next",
+    "Play",
+    "Pause"
+  ],
   "native_startup_reliability": "intermittent crashes observed; see validation.md",
   "wheel_built": true,
   "wheel_isolated_install": true,
@@ -27,5 +37,18 @@
   "dashboard_device_ack_check": true,
   "utility_cartridges_0_4_tested_on_device": false,
   "hardware_accessed_by_offline_tests": false,
-  "hosted_ci_run": false
+  "hosted_ci_run": false,
+  "audio": {
+    "dependency": "sounddevice 0.5.6",
+    "physical_playback_checked": false,
+    "physical_duplex_checked": false,
+    "offline_tests": 27,
+    "physical_microphone_checked": false,
+    "endpoint_enumeration_checked": true
+  },
+  "winrt_production_physical_acceptance": false,
+  "activation_guard_physical_acceptance": false,
+  "driver_lab_checked": true,
+  "pipeline_lab_checked": true,
+  "device_lab_dry_run_checked": true
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Optional PyWinRT media input, with explicit backend selection and the legacy bridge retained.
+- Immediate-first activation handling merges callbacks within 250 ms; physical tap reliability remains an acceptance test.
+- Link Lab exposes transfer acknowledgments, input observations and numbered test patterns without an upload feedback loop.
+- Audio Lab adds explicit, short speaker, microphone and duplex sessions through an optional portable audio backend.
+- Runnable device, driver and pipeline labs cover read/write commands, resend handling, backpressure and recovery.
+- Bounded clip/export inputs, final-preview saving on shutdown, clearer host structure and expanded pixel galleries.
+
 ## 0.5.0
 
 - Interactive dashboard with five simultaneous host metrics, detail views, back navigation and an explicit exit tile.

@@ -2,6 +2,16 @@
 
 Install from a source checkout with `python -m pip install -e .`.
 
+For the full Windows setup, use Python 3.11+ in a virtual environment:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio]"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Preview -Demo dashboard
+```
+
+The launcher finds `.venv`. In the other examples, use `.\.venv\Scripts\python.exe` or `.\.venv\Scripts\pixeldeck.exe` if you have not activated that environment.
+
 Install `python -m pip install -e ".[telemetry]"` for the optional psutil-backed network and battery sources. Preview, image transfer, clocks, timers, storage, and the existing CPU/memory providers do not require that extra. A missing source is displayed as unavailable; gallery fixtures never become fallback live measurements.
 
 ## Commands
@@ -13,6 +23,9 @@ Install `python -m pip install -e ".[telemetry]"` for the optional psutil-backed
 | `pixeldeck list` | List cartridge descriptions |
 | `pixeldeck run [demo]` | Desktop-only preview |
 | `pixeldeck run dashboard --send --media` | Multi-monitor grid with Bluetooth output and supported media input |
+| `pixeldeck run link --send --media` | Frozen transfer/input snapshots and an explicit test pattern |
+| `pixeldeck audio-devices [--match MiniToo]` | List audio endpoint indices without opening streams |
+| `pixeldeck run audio` | Audio Lab UI with hardware audio disabled |
 | `pixeldeck run pulse --send` | Opt into live display output |
 | `pixeldeck run buttons --send --media` | Opt into display plus muted media input session |
 | `pixeldeck run signal --stdin` | Read newline-delimited notification events |
@@ -22,7 +35,7 @@ Install `python -m pip install -e ".[telemetry]"` for the optional psutil-backed
 | `pixeldeck run power` | Preview battery and external-power information when reported by the OS |
 | `pixeldeck stop` | One local IPC stop request |
 | `pixeldeck configure --address ADDRESS` | Write private local device settings |
-| `pixeldeck build-input` | Compile the included Windows bridge into the runtime directory |
+| `pixeldeck build-input [--backend auto\|winrt\|legacy]` | Check WinRT dependencies or compile the legacy C# bridge |
 | `pixeldeck image file.png [--fit contain]` | Fit an image and save one preview; `--send` sends it |
 | `pixeldeck export orbit --output orbit.gif` | Offline animation export |
 | `pixeldeck clip file.gif --frames 2` | Encode a bounded clip and report sizes; `--send` is experimental |
@@ -38,9 +51,15 @@ From the repository directory:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Preview -Demo dashboard
 ```
 
-`Preview` uses desktop controls only. `Display` adds Bluetooth frame output. `Interactive` adds the media-input bridge and compiles it if missing. Preview and Dashboard are the defaults. The launcher looks for `.venv`, then `py` or `python`; it does not install dependencies.
+`Preview` uses desktop controls only. `Display` adds Bluetooth frame output. `Interactive` adds media input, checks WinRT dependencies or builds the selected legacy bridge if missing. Preview and Dashboard are the defaults. The launcher looks for `.venv`, then `py` or `python`; it does not install dependencies.
 
-Optional arguments are `-Python FULL_PYTHON_EXE`, `-Config PRIVATE_DEVICE_JSON`, `-RuntimeDirectory PRIVATE_FOLDER` and `-Duration 600`. A duration of `0` runs until closed. `-Check` runs redacted static diagnostics without connecting in any mode.
+Optional arguments are `-Python FULL_PYTHON_EXE`, `-Config PRIVATE_DEVICE_JSON`, `-RuntimeDirectory PRIVATE_FOLDER`, `-InputBackend Auto|WinRT|Legacy` and `-Duration 600`. Audio Lab accepts `-Audio` with `-AudioInput ID` and/or `-AudioOutput ID`. A duration of `0` runs until closed. `-Check` runs redacted static diagnostics without connecting in any mode.
+
+## Input backends
+
+`pixeldeck run ... --send --media --input-backend auto` is the default selection. Auto uses Python WinRT on Windows/Python 3.11+ when the matching family-4 dependency metadata is installed; otherwise it selects legacy C#. Choose `--input-backend winrt` to require WinRT or `--input-backend legacy` for the explicit fallback. Runtime failure does not trigger a silent backend switch; the selected receiver gets at most two restarts.
+
+`pixeldeck build-input --backend winrt` checks dependencies without opening a session. `--backend legacy` compiles the included C# source and requires Windows PowerShell, the .NET Framework compiler and Windows WinMetadata. The WinRT receiver follows playback state; the experimental `--keep-playing` mode is not used by normal demos.
 
 ## Controls and useful cartridges
 
@@ -50,11 +69,15 @@ Left / Right navigate; Enter / Space activate. Desktop **Esc / Back** returns fr
 
 Dashboard has six tiles: CPU, MEMORY, NETWORK, STORAGE, POWER and EXIT. Left / Right wraps through the grid; Activate opens a metric. Detail view uses Left / Right to cycle through the five metrics, and Activate or desktop Back / Esc to return to the grid. Desktop Back from the grid leaves Dashboard for Bit Buddy. Activating EXIT closes the host application and releases its connections, leaving the last frame on the device.
 
-The media bridge exposes **previous, next and activate**. Both Play and Pause normalize to activate. It does not expose arbitrary joystick movement or a hardware Back action. The same activate action returns from Dashboard detail, so its normal select/open/return flow works with these three actions.
+The input adapter maps callbacks to **previous, next and activate**. Both Play and Pause normalize to activate. The first activation is delivered immediately; further Play/Pause callbacks within 250 ms of it are coalesced. This adds no wait to the first action, but can merge deliberate fast taps. Previous/Next are not coalesced. The new handling still needs physical acceptance testing; see [input evidence and diagnostics](input-research.md).
+
+Activate returns from Dashboard detail. Arbitrary joystick movement and the original hardware Back key have no application mapping.
 
 | Cartridge | Useful for | Activate |
 |---|---|---|
 | `dashboard` | CPU, memory, network, storage and power overview | Open selected metric; detail returns to grid; EXIT closes |
+| `link` | Transfer metrics, host-input counts and test patterns | Refresh snapshot, open detail and advance pattern |
+| `audio` | Short speaker, microphone and duplex tests | Start a five-second test; while active, request stop |
 | `clock` | Local or UTC wall time | Switch local / UTC |
 | `stopwatch` | Timing a task or experiment | Start / pause; R resets |
 | `pomodoro` | 25-minute focus / 5-minute break sessions | Start / pause; R resets |
@@ -65,6 +88,42 @@ The media bridge exposes **previous, next and activate**. Both Play and Pause no
 | `build` | Progress from a local event producer | Change detail view |
 
 Network sampling is passive: it reads interface counters, sends no probes, and does not measure Internet bandwidth or server reachability. Storage shows capacity, not disk throughput. A desktop without a battery shows an explicit empty state. Breath Loop provides a visual pace.
+
+Link Lab uses Left / Right to select LINK, INPUT or PATTERN. Activate copies the latest observations into a frozen snapshot and opens detail. Desktop Back returns to its overview, then Bit Buddy. Observations are collected while hidden, but ACK/status updates never request a frame: the current upload's result appears only after a later snapshot. Input counts describe host events, including separately counted coalesced/unmapped observations, not physical presses.
+
+## Audio Lab
+
+Install `python -m pip install -e ".[audio]"` in the selected environment if the audio extra is absent. It uses sounddevice/PortAudio; Linux may also need the system PortAudio library.
+
+```shell
+pixeldeck audio-devices --match MiniToo
+pixeldeck run audio --audio --audio-input INPUT_ID --audio-output OUTPUT_ID
+```
+
+Replace the IDs with the integer indices returned by `audio-devices`; run it without `--match` to list all endpoints. `--audio` requires at least one explicit index. The default `run audio` leaves hardware audio off, and an enabled session stays idle until Activate.
+
+| Mode | Required endpoint | Effect |
+|---|---|---|
+| SPEAKER | `--audio-output OUTPUT_ID` | Five-second test tone |
+| MIC | `--audio-input INPUT_ID` | Input RMS, peak and a bounded waveform |
+| DUPLEX | Both | Independent tone output and microphone observation; no mic-to-speaker echo |
+
+While idle, Left / Right selects the mode. Activate starts the test; Activate or desktop Back stops it. Back while idle leaves Audio Lab, and choosing another cartridge cancels an active test. A missing input/output direction produces a visible error instead of selecting a different device. Add `--send` for MiniToo display output; audio output itself does not require that flag.
+
+No audio file is recorded. On shutdown, the host's `latest.png` stores only its last display image, which may include the level graph. Device enumeration and offline stream tests do not verify physical playback, capture or duplex operation; those acceptance checks remain pending.
+
+## Device write lab
+
+```shell
+python examples/device_lab.py
+python examples/device_lab.py --operation still --send --config private.json
+```
+
+The default is a dry-run plan for all three public writes: a generated still, a two-frame clip and brightness. It does not read device configuration or connect. Select `--operation still`, `clip`, `brightness` or `all`; only `--send` performs writes. `--period` sets the clip period in milliseconds (default 250), and `--level` sets brightness from 0 to 100 (default 50).
+
+Clip playback and brightness are experimental. The device's original brightness cannot be read, so the lab does not restore it automatically. An ACK alone does not confirm the physical effect. Avoid `--operation all --send` when you only intend to test a still frame.
+
+`python examples/driver_lab.py` and `python examples/pipeline_lab.py` are finite offline simulations with asserted JSON results. They have no hardware mode. See the [capability map](capabilities.md) for their coverage.
 
 ## Pushed events
 
@@ -114,11 +173,14 @@ For this toolkit, the practical requirement is working profiles and drivers; a B
 ## Troubleshooting
 
 - No device animation: check that the mode is LIVE and the command includes `--send`. Windows pairing alone does not upload frames. Then check the display status, configured address, paired name and phone ownership of the control connection.
-- Activate works only on the computer: `--send` enables display output; `--media` additionally enables supported physical input. Check the separate input status, then use `buttons` to verify one action per press.
+- Activate works only on the computer: `--send` enables display output; `--media` additionally enables the media-input session. Confirm Bluetooth Music mode, check the separate input status, then use `buttons` to measure the received actions. Input readiness alone does not prove one action per press.
+- Unexpected Play/Pause counts: the 250 ms guard merges short bursts, including deliberately fast taps. Use Button Lab to verify ordinary presses; the new backend/guard still needs physical acceptance testing.
+- Input startup errors: inspect the selected backend in `doctor` and the input status. WinRT needs the matching optional dependencies; legacy has known intermittent native startup faults. Follow the separate [input test procedure](input-research.md#test-method).
 - Ambiguous audio endpoint: configure an exact endpoint-ID substring. Do not select an unrelated speaker just to get a match.
 - Original device menu appears: the current native device mode may consume the joystick. Up/down/center are not mapped as app input.
-- Missing native bridge: run `build-input`; check the compiler and WinMetadata prerequisites in its error output.
+- Missing legacy bridge: run `build-input --backend legacy`; check the compiler and WinMetadata prerequisites in its error output.
 - Slower animation: fewer real frames may be delivered than requested. The app skips obsolete pictures while maintaining state. Lower-detail frames generally cost less bandwidth.
 - Unavailable network or battery values: install the telemetry extra and check whether the operating system exposes the measurement. A missing battery is normal on many desktop computers.
+- Audio unavailable: inspect `audio-devices`, select the direction needed by the chosen mode, and check the audio extra and OS audio permissions. An advertised output does not establish that the MiniToo exposes a usable microphone input.
 - Exhausted reconnect budget: close and restart the session after restoring the device connection.
 - Sharing a bug report: summarize logs and remove local addresses, endpoint identifiers and absolute paths. The public validation record intentionally contains aggregates only.

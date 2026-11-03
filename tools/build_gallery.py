@@ -102,6 +102,41 @@ def controls():
         text(out,x+166,y+48,action,MUTED,1,True)
     return out
 
+def io_map():
+    out=Image.new('RGB',(1080,670),INK); d=ImageDraw.Draw(out)
+    text(out,24,22,'READ / WRITE / INPUT',CYAN,3)
+    text(out,24,66,'PUBLIC API SURFACES / EXPERIMENTS ARE EXPLICIT',MUTED,2)
+    columns=[
+        ('READ',CYAN,[
+            ('HOST METRICS','CPU / RAM / NET / DISK / POWER','LOCAL API CHECKS',MINT),
+            ('DEVICE REPLIES','READY / DONE / RESEND','LIVE TRANSFERS OBSERVED',MINT),
+            ('RX BYTES','RAW CHUNKS + DECODED PACKETS','EXPERIMENTAL CAPTURE',GOLD),
+            ('MIC INPUT','RMS / PEAK / BOUNDED WAVEFORM','OPT-IN / HARDWARE PENDING',GOLD)]),
+        ('WRITE',PINK,[
+            ('LIVE FRAMES','160 X 128 RGB','HARDWARE CHECKED',MINT),
+            ('JPEG CLIPS','BOUNDED MULTI-FRAME ENCODING','PLAYBACK EXPERIMENTAL',GOLD),
+            ('BRIGHTNESS','EXPLICIT COMMAND / DRY RUN FIRST','PHYSICAL EFFECT UNVERIFIED',GOLD),
+            ('AUDIO OUTPUT','TEST TONE / SELECTED ENDPOINT','OPT-IN / HARDWARE PENDING',GOLD)]),
+        ('INPUT',MINT,[
+            ('DESKTOP + JSONL','KEYS / NOTICE / BUILD','APP EVENTS TESTED',MINT),
+            ('MEDIA CALLBACKS','PREVIOUS / NEXT / PLAY / PAUSE','OBSERVED / TAP COUNTS OPEN',GOLD),
+            ('RAW INPUT RESEARCH','PASSIVE CAPTURE / SOFTWARE PROBES','NO UP/DOWN/BACK MAPPING',PINK),
+            ('AUDIO CONTROLS','ACTIVATE STARTS / BACK STOPS','FIVE SECONDS / OFF BY DEFAULT',GOLD)])]
+    for i,(label,color,rows) in enumerate(columns):
+        x=24+i*352
+        d.rectangle((x,112,x+331,598),fill=PANEL,outline=LINE,width=2)
+        text(out,x+16,130,label,color,3)
+        d.line((x+16,162,x+315,162),fill=LINE)
+        for j,(title,detail,state,state_color) in enumerate(rows):
+            y=184+j*104
+            text(out,x+16,y,title,WHITE,2)
+            text(out,x+16,y+29,detail,MUTED)
+            d.rectangle((x+16,y+51,x+20,y+58),fill=state_color)
+            text(out,x+29,y+52,state,state_color)
+    text(out,24,624,'HARDWARE RESULTS APPLY TO THE TESTED HOST AND DEVICE.',MUTED,2)
+    text(out,24,652,'SEE THE CAPABILITY MAP FOR RUNNABLE EXAMPLES AND VERIFICATION.',MUTED)
+    return out
+
 if __name__=='__main__':
     for name in CATALOG:
         export_demo(name,OUT/(name+'.gif'))
@@ -113,5 +148,6 @@ if __name__=='__main__':
     overview([name for name in USEFUL if name in CATALOG],title='SMALL TOOLS. REAL PURPOSE.').save(OUT/'useful-demos.png')
     architecture().save(OUT/'architecture.png')
     controls().save(OUT/'controls.png')
+    io_map().save(OUT/'io-map.png')
     device(specimen('orbit').render(1)).save(OUT/'device-orbit.png')
     print('Generated original gallery assets.')

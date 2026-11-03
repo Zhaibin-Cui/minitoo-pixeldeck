@@ -5,6 +5,7 @@ No gallery, firmware, reset, or persistent-face command is implemented.
 """
 from dataclasses import dataclass
 import io
+from itertools import islice
 import struct
 from PIL import Image, ImageOps
 
@@ -77,8 +78,8 @@ def fit_image(image, mode="contain"):
 
 def jpeg_clip(images, period_ms=1000, quality=72):
     """Encode 0x23 JPEG frames. Multi-frame playback is experimental on this host."""
-    images = list(images)
-    if not 1 <= len(images) <= 255 or not 1 <= period_ms <= 65535:
+    images = list(islice(images, 256))
+    if not 1 <= len(images) <= 255 or type(period_ms) is not int or not 1 <= period_ms <= 65535:
         raise ValueError("Clip needs 1..255 frames and a uint16 period")
     out = bytearray(struct.pack(">BBHBB", 0x23, len(images), period_ms, 8, 10))
     for image in images:

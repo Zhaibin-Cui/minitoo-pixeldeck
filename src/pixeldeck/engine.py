@@ -43,6 +43,8 @@ class FramePump:
     on_status runs on a worker thread; marshal GUI changes onto your UI event loop.
     """
     def __init__(self, sink_factory, on_status=lambda event: None, retries=3):
+        if type(retries) is not int or not 0 <= retries <= 5:
+            raise ValueError('Frame retries must be an integer within 0..5')
         self.factory, self.on_status, self.retries = sink_factory, on_status, retries
         self.pending = Latest()
         self.stop = threading.Event()

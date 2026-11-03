@@ -1,15 +1,15 @@
 <p align="center"><img src="docs/assets/hero.gif" alt="MiniToo Pixeldeck: a pixel robot on an illustrated desktop device" width="1080"></p>
 
-<p align="center"><strong>A tiny screen with a proper software stack.</strong><br>
-Protocol tools · independent streams · sixteen original pixel cartridges<br>
-Python 3.10+ · Windows hardware backend · MIT · v0.5.0</p>
+<p align="center"><strong>MiniToo protocol tools, live pixels and interactive demos.</strong><br>
+Protocol tools · independent streams · eighteen original pixel cartridges<br>
+Python 3.10+ core · Python 3.11+ WinRT input · MIT · v0.6.0</p>
 
-MiniToo Pixeldeck is an independent, unofficial reverse-engineering toolkit for the **Divoom MiniToo**. Send images, build interactive pixel scenes, inspect the protocol, or use the display as a miniature system monitor. No firmware replacement. No cloud account. Importing the package never connects a device.
+MiniToo Pixeldeck is an independent, unofficial reverse-engineering toolkit for the **Divoom MiniToo**. Send images, build interactive pixel scenes, inspect the protocol, or use the display as a miniature system monitor. The software runs on your computer and leaves the device firmware unchanged. Importing the package never connects a device.
 
 ```text
 PIXELDECK / DESK INSTRUMENTS
   CANVAS       160 x 128 RGB
-  CARTRIDGES   16 demos
+  CARTRIDGES   18 demos
   INPUT        callbacks + local event streams
   OUTPUT       newest frame wins
   FIRST BOOT   preview / no device required
@@ -23,14 +23,18 @@ Watch network traffic, time a focus session, or follow a build from the desk. Ea
 
 ## Architecture
 
-![The input, cartridge, frame mailbox and device pipeline](docs/assets/architecture.png)
+![Read, write and input interfaces with their verification status](docs/assets/io-map.png)
 
 ```text
 src/pixeldeck/
   protocol.py     Pure framing, incremental decode, image fitting, clip encoding
   driver.py       RFCOMM transactions, independent RX, deadlines and retransmission
   engine.py       One display writer, latest-frame mailbox, deduplication, reconnect
-  inputs.py       WinRT callback stream and bounded JSONL notification input
+  inputs.py       Input supervision, activation guard and bounded JSONL pushes
+  input_backends.py  Dependency checks and backend selection
+  windows_media.py  Python WinRT media-session entry point
+  audio.py        Explicit-device audio I/O, levels and bounded PCM preview
+  audio_worker.py  Cancellable audio jobs and generation-tagged events
   deck.py         Pure cartridge navigation; no GUI or Bluetooth dependency
   demos/          Stateful renderers with explicit time-event scheduling
   pixels.py       Original pixel lettering and drawing primitives
@@ -38,6 +42,7 @@ src/pixeldeck/
   sources.py      Visible-source subscriptions and isolated host measurement worker
   app.py          Desktop preview, input routing, lifecycle and local stop control
   native/         Rebuildable Windows media-event bridge
+  experimental/   Opt-in raw capture and media-session diagnostics
 ```
 
 **Input is event-driven.** Windows media callbacks write directly into a pipe; the receiver blocks until data arrives. Notifications arrive as JSONL pushes. Neither path scans a file or periodically asks whether something changed.
@@ -56,23 +61,26 @@ The hardware paths are different: image packets use **Classic Bluetooth RFCOMM c
 | Cartridge | `render`, `handle`, `next_delay` | No |
 | Data source | Declare `sources` and `source_interval`; receive typed events | No |
 | Input | Push normalized events, notices or build progress | No |
+| Audio | `AudioWorker(callback, backend_factory=...)`; backend implements `run` | Only for real streams |
 
-See [design and resource bounds](docs/architecture.md), [API recipes](docs/extending.md), and the [capability-to-demo map](docs/capabilities.md).
+See the [runtime pipeline and resource bounds](docs/architecture.md), [API recipes](docs/extending.md), and [capability-to-demo map](docs/capabilities.md).
 
 ## Use it
 
 ### 1. Preview first
 
-From a source checkout:
+For the full Windows setup, use Python 3.11+ from a source checkout:
 
-```shell
-python -m pip install -e .
-pixeldeck doctor
-pixeldeck list
-pixeldeck run buddy
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio]"
+.\.venv\Scripts\pixeldeck.exe doctor
+.\.venv\Scripts\pixeldeck.exe run buddy
 ```
 
-Or, with Pillow already installed, use `python run.py` instead of `pixeldeck`. The desktop preview needs Tkinter, normally included in python.org Windows installations. Protocol, encoding and headless GIF export do not need Tkinter.
+Examples below use `python` and `pixeldeck` for brevity. If the environment is not activated, use `.\.venv\Scripts\python.exe` and `.\.venv\Scripts\pixeldeck.exe`; the Windows launcher finds `.venv` automatically. A minimal or non-Windows preview install needs Python 3.10+ and `python -m pip install -e .`.
+
+With Pillow already installed, `python run.py` also works instead of `pixeldeck`. The desktop preview needs Tkinter, normally included in python.org Windows installations. Protocol, encoding and headless GIF export do not need Tkinter.
 
 **Left / Right** select a cartridge, or a tile inside Dashboard. **Enter / Space** activates the current item. **Esc** goes back; **Ctrl+Q** exits. **R** resets Stopwatch, Pomodoro and Breath Loop. The dropdown and on-screen buttons work too. A session defaults to ten minutes; `--duration 0` disables the time limit.
 
@@ -80,7 +88,7 @@ The window always shows its **PREVIEW** or **LIVE** mode. Activate operates the 
 
 ![Desktop preview controls](docs/assets/controls.png)
 
-For real network counters and battery information, install the optional telemetry dependency:
+The full setup includes network and battery sources. Minimal installs can add them with:
 
 ```shell
 python -m pip install -e ".[telemetry]"
@@ -107,7 +115,11 @@ pixeldeck build-input
 pixeldeck run dashboard --send --media
 ```
 
-The bridge is compiled locally from included C# source. It requires Windows PowerShell, the .NET Framework compiler and Windows WinMetadata. The configured endpoint must match exactly one speaker output. It provides three actions: previous, next and activate (both Play and Pause). Dashboard uses them to select and open tiles; other cartridges use previous/next for navigation. Joystick up/down/center and a device Back key are **not** exposed by this toolkit. Some native device modes consume buttons locally.
+Input defaults to `--input-backend auto`: Windows/Python 3.11+ with the matching WinRT dependency family uses the Python receiver; otherwise it selects the legacy C# bridge. Use `--input-backend winrt` or `legacy` to select explicitly. `build-input` checks WinRT dependencies or compiles the legacy bridge. A runtime failure is reported and retried finitely; it does not silently switch backends.
+
+The configured endpoint must match exactly one speaker output. Media callbacks map to previous, next and activate (both Play and Pause). The first activation is delivered immediately; further Play/Pause callbacks within 250 ms of it are coalesced. Deliberate fast taps can therefore merge. Joystick up/down/center and the original Back key have no application mapping.
+
+The new backend and activation guard still need physical acceptance testing. Earlier sessions produced paired/missing Play/Pause callbacks and intermittent legacy startup failures. Before a device-input test, confirm the MiniToo's **Bluetooth Music playback screen** and verify Left/Right callbacks. Desktop controls remain available. [Input setup and evidence →](docs/input-research.md)
 
 | Start mode | Display output | Input |
 |---|---|---|
@@ -123,7 +135,7 @@ On Windows, [launch.ps1](launch.ps1) offers the same three modes. It defaults to
 powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Interactive -Demo dashboard
 ```
 
-Use `-Mode Display` for output without device input, or add `-Check` for redacted diagnostics without connecting. [Launcher options →](docs/usage.md#windows-launcher)
+Use `-Mode Display` for output without device input, `-InputBackend WinRT` or `Legacy` to select input, or `-Check` for redacted diagnostics without connecting. [Launcher options →](docs/usage.md#windows-launcher)
 
 ### 3. Send, export and push
 
@@ -149,7 +161,7 @@ Run `pixeldeck run build --stdin` and let your own producer report state changes
 
 ## Insert a cartridge
 
-These are **real program renders**, not concept art. Gallery GIFs are exported offline at 8 FPS. Device animation requests 3 FPS by default and is limited by actual Bluetooth throughput. Monitor values below are synthetic fixtures. The device illustration is original stylized artwork, not a product photo.
+These are **real program renders**, not concept art. Gallery GIFs are exported offline at 8 FPS. Device animation requests 3 FPS by default and is limited by actual Bluetooth throughput. Metrics and audio waveforms below are synthetic fixtures. The device illustration is original stylized artwork, not a product photo.
 
 | What belongs on your desk? | Start here |
 |---|---|
@@ -157,7 +169,8 @@ These are **real program renders**, not concept art. Gallery GIFs are exported o
 | Time with a physical presence | `clock` · `stopwatch` · `pomodoro` · `focus` · `breathe` |
 | A glanceable event signal | `build` · `signal` |
 | Animated pixel scenes | `buddy` · `rain` · `orbit` |
-| A clear input diagnostic | `buttons` |
+| Input and transport diagnostics | `buttons` · `link` |
+| Speaker and microphone diagnostics | `audio` |
 
 Every preview is reproducible: [cartridge registry](src/pixeldeck/demos/__init__.py) → [export code](src/pixeldeck/export.py) → [gallery builder](tools/build_gallery.py). [Full contact sheet →](docs/assets/gallery.png)
 
@@ -165,13 +178,38 @@ Every preview is reproducible: [cartridge registry](src/pixeldeck/demos/__init__
 
 <img src="docs/assets/dashboard.gif" alt="Dashboard grid, metric selection and enlarged CPU detail" width="480">
 
-CPU, memory, network, storage and power share one overview, with a sixth **EXIT** tile. Left / Right moves the selection; Activate opens a metric. In detail view, Left / Right changes metrics and Activate or desktop Back / Esc returns to the grid. On the MiniToo, **Play / Pause opens and returns**; joystick up/down and the original Back key are unsupported. Desktop Back / Esc from the grid returns to Bit Buddy.
+CPU, memory, network, storage and power share one overview, with a sixth **EXIT** tile. Left / Right moves the selection; Activate opens a metric. In detail view, Left / Right changes metrics and Activate or desktop Back / Esc returns to the grid. Received MiniToo Play/Pause callbacks map to Activate; the physical-input limitations above still apply. Desktop Back / Esc from the grid returns to Bit Buddy.
 
 ```shell
 pixeldeck run dashboard --send --media
 ```
 
 The EXIT tile, desktop Exit button or Ctrl+Q closes Pixeldeck and releases its connections. The device keeps the last displayed frame; exit does not restore its native menu. The demo also works in preview mode without either flag.
+
+### Link Lab
+
+<img src="docs/assets/link.gif" alt="Link Lab ACK, input and numbered test-pattern panels" width="480">
+
+Inspect the last transfer, input counters and a numbered test pattern. Left / Right selects LINK, INPUT or PATTERN. Activate takes a snapshot, opens detail and advances the pattern; desktop Back returns to the overview, then Bit Buddy.
+
+```shell
+pixeldeck run link --send --media
+```
+
+ACKs and input observations accumulate without triggering a redraw or another upload. Activate refreshes the display, so the current frame's ACK appears in a later snapshot. These are host events and transfer timings, not raw key identities or visible-pixel latency.
+
+### Audio Lab
+
+<img src="docs/assets/audio.gif" alt="Synthetic Audio Lab speaker, microphone and duplex waveforms" width="480">
+
+SPEAKER plays a test tone, MIC displays input levels and a waveform, and DUPLEX does both independently. There is no microphone-to-speaker loopback or audio-file recording. Audio stays off until explicitly enabled and activated.
+
+```shell
+pixeldeck audio-devices --match MiniToo
+pixeldeck run audio --audio --audio-input INPUT_ID --audio-output OUTPUT_ID
+```
+
+Replace the IDs with endpoints reported by `audio-devices`. Left / Right chooses a mode while idle; Activate starts its five-second test. Activate or desktop Back stops an active test, and leaving the page stops audio. Add `--send` to display it on the MiniToo. Endpoint discovery is not proof of working playback or capture; physical audio tests are pending. [Audio setup →](docs/usage.md#audio-lab)
 
 ### System monitors and desk tools
 
@@ -244,17 +282,40 @@ class Hello(Demo):
 
 For an interactive version and registration, run [custom_cartridge.py](examples/custom_cartridge.py). For a headless encoding walkthrough, run [protocol_lab.py](examples/protocol_lab.py). Replace the output sink to stream into another device or your own test harness.
 
+### Driver and pipeline labs
+
+These examples finish on their own and work without a device:
+
+```shell
+python examples/device_lab.py
+python examples/driver_lab.py
+python examples/pipeline_lab.py
+```
+
+| Lab | What it demonstrates |
+|---|---|
+| [Device writes](examples/device_lab.py) | A dry-run plan for a generated still, a two-frame clip and brightness; no configuration or device access by default |
+| [Driver](examples/driver_lab.py) | The real driver with a simulated socket: ACKs, resend, timeouts, heartbeat draining and raw receive observation |
+| [Pipeline](examples/pipeline_lab.py) | The real frame pump with simulated sinks: newest-frame replacement, deduplication, idle reconnect and cleanup |
+
+`device_lab.py --operation still --send` explicitly uploads its generated test frame. Clip playback and brightness remain experimental; [usage](docs/usage.md#device-write-lab) covers those options and their limits.
+
 ## Validation and boundaries
 
-- Offline checks cover framing, fragmented input, ACK loss, retransmission, bounded heartbeats, queue replacement, idle reconnect, utility state machines, data subscriptions, pushed events and hidden GUI shutdown. The current counts and results are recorded in [validation](docs/validation.md).
-- A preceding hardware session using the same media-command approach completed **401 acknowledged frames** over about ten minutes, with **296 ms median transfer time**, no logged transfer failures, and user-confirmed single-press counting and timer controls.
-- The **0.3.0** driver acknowledged **24 frames across the original seven demo renderers**, with **390.5 ms median transfer time** and no retransmission requests. This earlier display-only check does not certify later cartridges, media input or long runs. ACK latency does not measure the instant pixels become visible. [Validation details →](docs/validation.md)
-- Live uploads do not call gallery or firmware-write commands. Firmware-side memory/storage behavior, overnight endurance and simultaneous phone music remain unverified.
-- Windows is the bundled hardware backend. Preview/rendering/protocol code is portable. CPU/memory have built-in Windows and Linux providers; other platforms show unavailable values for those fields. Optional network/battery measurements depend on what the host OS and psutil report. A supported API is not a claim that every platform has been exercised.
+| Area | Current evidence |
+|---|---|
+| Live display | Dashboard completed ten minutes with **583 acknowledged frames**, **469 ms median transfer**, two retransmission requests and clean shutdown. ACK time is not visible-pixel latency. |
+| Physical input | Previous/Next and Play/Pause callbacks were observed in Bluetooth Music mode. The new WinRT backend and 250 ms activation guard await physical acceptance testing. Up/Down/Back have no verified mapping. |
+| Offline behavior | Tests cover framing, retransmission, deadlines, bounded queues, reconnect, state machines, sources, pushed events and GUI cleanup. Current counts are in [validation](docs/validation.md). |
+| Portability | Rendering and protocol code are portable; the bundled Bluetooth backend is Windows. Host metrics depend on platform APIs and optional psutil support. |
+| Audio | Explicit endpoint selection and short speaker/microphone/duplex tests are implemented. Physical playback/capture acceptance is pending. |
+| Long runs | Live uploads use no gallery-save or firmware command. Device RAM/flash behavior, overnight endurance and simultaneous phone music remain unverified. |
+
+Detailed sessions and earlier release checks are in [validation](docs/validation.md). Raw-input findings and the physical test procedure are in [input investigation](docs/input-research.md).
 
 ## Development
 
-Raw joystick work is tracked separately in [input investigation](docs/input-research.md). Experimental receivers capture evidence; they do not add unverified Up/Down/Back mappings to normal demos.
+Protocol and transport recipes are listed in the [capability map](docs/capabilities.md). Experimental receivers and synthetic media commands live in `pixeldeck.experimental`; the [input guide](docs/input-research.md) covers their Windows/Python 3.11+ dependencies and verification steps. Normal demos use the selected WinRT or legacy backend.
 
 ```shell
 python -m unittest discover -s tests -v
@@ -262,12 +323,12 @@ python tools/build_gallery.py
 python tools/release.py
 ```
 
-The release tool includes an explicit public file allowlist, checks relative Markdown links, scans for local paths/device identifiers/secrets, and writes a ZIP plus SHA-256 checksum. It does not publish anything. CI runs offline tests and builds a wheel on Windows and Linux.
+The release tool uses a public file allowlist, checks relative Markdown links, scans for local paths/device identifiers/secrets, and writes a ZIP plus SHA-256 checksum. It does not publish anything. The included CI workflow is configured for offline tests and wheel builds on Windows and Linux.
 
 <details>
 <summary><strong>Rebuild the visual documentation</strong></summary>
 
-`tools/build_gallery.py` generates the hero, control strip, architecture drawing, full contact sheet, utility contact sheet and every cartridge PNG/GIF from source. The monitor fixtures are synthetic and carry no host identity. No image-generation service, paid font or downloaded sprite pack is needed to reproduce the gallery.
+`tools/build_gallery.py` generates the hero, control strip, I/O map, runtime diagram, contact sheets and every cartridge PNG/GIF from source. The monitor fixtures are synthetic and carry no host identity. No image-generation service, paid font or downloaded sprite pack is needed to reproduce the gallery.
 
 </details>
 

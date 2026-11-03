@@ -173,11 +173,14 @@ class MarkerInput:
         env = os.environ.copy()
         source_root = str(Path(__file__).resolve().parents[2])
         env["PYTHONPATH"] = source_root + os.pathsep + env.get("PYTHONPATH", "")
+        # A console input handle is valid only while the child shares that console.
+        # Flags=0 inherits the existing console; it does not request a new window.
+        creationflags = 0 if stream.isatty() else getattr(subprocess, "CREATE_NO_WINDOW", 0)
         self.process = subprocess.Popen(
             [sys.executable, "-u", "-m", "pixeldeck.experimental.input_probe", "--marker-reader"],
             stdin=stream, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, encoding="utf-8", env=env,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            creationflags=creationflags)
         self.thread = threading.Thread(target=self._read, name="pixeldeck-probe-markers", daemon=True)
         self.thread.start()
 

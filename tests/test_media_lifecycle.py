@@ -103,7 +103,8 @@ class MediaLifecycleTests(unittest.TestCase):
     def start(self, factory, events, **options):
         defaults={'ready_timeout':1,'restart_delay':0,'stop_timeout':0.03}
         defaults.update(options)
-        with patch('pixeldeck.inputs.Path.exists',return_value=True):
+        with patch('pixeldeck.input_backends.Path.is_file',return_value=True), \
+                patch('pixeldeck.inputs.select_backend',return_value='legacy'):
             media=MediaInput(SimpleNamespace(endpoint='test endpoint'),events,process_factory=factory,**defaults)
         self.addCleanup(media.close)
         return media
@@ -132,6 +133,22 @@ class MediaLifecycleTests(unittest.TestCase):
         self.assertEqual(events.kind('error'),[])
         self.assert_finished(media,process)
 
+    def test_paired_activation_is_reported_without_delaying_or_restarting_input(self):
+        process=FakeProcess(); events=Events(); factory=Factory(process)
+        media=self.start(factory,events)
+        self.assertTrue(factory.wait_for_calls(1))
+        process.emit('ready')
+        process.emit('button','Pause',sequence=1)
+        self.assertTrue(events.wait_for(lambda event:event.get('type')=='button'))
+        process.emit('button','Play',sequence=2)
+        process.emit('button','Next',sequence=3)
+        self.assertTrue(events.wait_for(lambda event:event.get('raw')=='Next'))
+        self.assertEqual([event['raw'] for event in events.items if event['type']=='button'],['Pause','Next'])
+        self.assertEqual([event['raw'] for event in events.items if event['type']=='input.coalesced'],['Play'])
+        self.assertEqual(events.kind('error'),[])
+        self.assertEqual(factory.calls,1)
+        media.close(); self.assert_finished(media,process)
+
     def test_silent_startup_exit_reports_code_and_stops_after_two_restarts(self):
         processes=[FakeProcess() for _ in range(3)]
         for process in processes: process.finish(-1073741819)
@@ -147,6 +164,29 @@ class MediaLifecycleTests(unittest.TestCase):
             self.assertIn('before ready',event['message'])
         self.assertIn('-1073741819',events.kind('stopped')[0]['message'])
         self.assert_finished(media,*processes)
+
+    def test_unknown_button_is_diagnostic_and_next_known_button_still_arrives(self):
+        process=FakeProcess(); factory=Factory(process); events=Events()
+        media=self.start(factory,events)
+        self.assertTrue(factory.wait_for_calls(1))
+        process.emit('ready','Input connected')
+        process.emit('button','ChannelUp',sequence=20)
+        process.emit('button','Next',sequence=21)
+        self.assertTrue(events.wait_for(lambda event:event.get('type')=='button'))
+        self.assertTrue(media.thread.is_alive())
+        self.assertFalse(process.done.is_set())
+        media.close()
+        unmapped=[event for event in events.items if event['type']=='input.unmapped']
+        buttons=[event for event in events.items if event['type']=='button']
+        self.assertEqual(len(unmapped),1)
+        self.assertEqual((unmapped[0]['raw'],unmapped[0]['name'],unmapped[0]['sequence']),
+                         ('ChannelUp','ChannelUp',20))
+        self.assertNotIn('button',unmapped[0])
+        self.assertEqual([(event['button'],event['sequence']) for event in buttons],[('next',21)])
+        self.assertEqual(factory.calls,1)
+        self.assertEqual(events.kind('retrying'),[])
+        self.assertEqual(events.kind('error'),[])
+        self.assert_finished(media,process)
 
     def test_ready_does_not_reset_the_session_retry_budget(self):
         processes=[FakeProcess() for _ in range(3)]

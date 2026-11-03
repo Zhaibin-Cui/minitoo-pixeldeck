@@ -4,9 +4,11 @@ from .base import Demo
 from .utilities import Clock, Stopwatch, Pomodoro, Breathe
 from .monitors import NetScope, VolumeVault, PowerCell, BuildBeacon
 from .dashboard import Dashboard
+from .link_lab import LinkLab
+from .audio_lab import AudioLab
 CATALOG = {demo.key: demo for demo in (Pulse, Buddy, Rain, Orbit, Focus, Buttons, Signal,
                                       Clock, Stopwatch, Pomodoro, Breathe,
-                                      NetScope, VolumeVault, PowerCell, BuildBeacon, Dashboard)}
+                                      NetScope, VolumeVault, PowerCell, BuildBeacon, Dashboard, LinkLab, AudioLab)}
 
 def register(demo_class):
     if not isinstance(demo_class, type) or not issubclass(demo_class, Demo):

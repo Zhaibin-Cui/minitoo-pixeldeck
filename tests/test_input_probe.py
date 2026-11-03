@@ -174,6 +174,33 @@ class InputProbeTests(unittest.TestCase):
                 markers.close()
             self.assertFalse(markers.thread.is_alive())
 
+    def test_marker_helper_inherits_existing_tty_console_but_hides_pipe_child(self):
+        for is_tty in (True, False):
+            with self.subTest(is_tty=is_tty):
+                class Input(io.StringIO):
+                    def isatty(self):
+                        return is_tty
+
+                stream = Input()
+                tap = PacketTap()
+                with patch("pixeldeck.experimental.input_probe.subprocess.Popen") as factory, \
+                        patch("pixeldeck.experimental.input_probe.subprocess.CREATE_NO_WINDOW", 0x08000000, create=True):
+                    process = factory.return_value
+                    process.stdout = io.StringIO("CONSOLE_CHECK\n!STOP\n")
+                    process.poll.return_value = 0
+                    markers = MarkerInput(stream, tap)
+                    try:
+                        self.assertIs(factory.call_args.kwargs["stdin"], stream)
+                        self.assertEqual(factory.call_args.kwargs["creationflags"],
+                                         0 if is_tty else 0x08000000)
+                        event = tap.get(timeout=1)
+                        self.assertEqual((event.kind, event.data), ("marker", "CONSOLE_CHECK"))
+                    finally:
+                        markers.close()
+                    self.assertTrue(tap.snapshot()["stop_requested"])
+                    self.assertFalse(markers.thread.is_alive())
+                    self.assertTrue(process.stdout.closed)
+
     def test_stdin_stop_ends_early_and_keeps_queued_observations(self):
         fake = ProbeSocket()
         fake.incoming.put(packet(4, b"\xf7\x55\x00"))

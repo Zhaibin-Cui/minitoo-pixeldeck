@@ -10,19 +10,22 @@
 
 ## 使用
 
-在仓库目录运行：
+Windows 推荐使用 Python 3.11+，在仓库目录建立独立环境：
 
-```shell
-python -m pip install -e .
-pixeldeck doctor
-pixeldeck run buddy
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio]"
+.\.venv\Scripts\pixeldeck.exe doctor
+powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Preview -Demo buddy
 ```
+
+启动脚本会自动找到 `.venv`。下文命令中的 `python` 和 `pixeldeck` 是简写；未激活环境时，分别使用 `.\.venv\Scripts\python.exe` 和 `.\.venv\Scripts\pixeldeck.exe`。只做跨平台预览时，Python 3.10+ 安装基础包 `python -m pip install -e .` 即可。
 
 默认只预览，不连接设备。窗口会一直显示 PREVIEW 或 LIVE 模式。Activate 只操作当前 demo，不负责连接蓝牙；Windows 显示“已配对”也不代表程序正在传图。
 
 左右方向键切换 demo，在 Dashboard 内则选择监控项目。Enter 或空格操作，Esc / Back 返回，Ctrl+Q / Exit 退出。秒表、番茄钟和 Breath Loop 可在电脑上按 R 重置。也可以用窗口按钮。
 
-需要网络吞吐量和电池信息时，安装可选依赖：
+上面的完整安装已包含网络和电池数据依赖。基础安装可另外添加：
 
 ```shell
 python -m pip install -e ".[telemetry]"
@@ -47,7 +50,11 @@ pixeldeck build-input
 pixeldeck run dashboard --send --media
 ```
 
-这里会建立指定设备上的静音媒体会话。工具只接收“上一个、下一个、操作”三种动作，播放和暂停都归一为一次操作。摇杆上、下、中央按下和机身返回键不属于已支持的输入。手机放歌与电脑显示并行需要单独验证。
+默认 `--input-backend auto` 会在 Windows、Python 3.11+ 和匹配的 WinRT 依赖可用时选择 Python WinRT，否则选择旧 C# 后端。也可显式指定 `--input-backend winrt` 或 `--input-backend legacy`。`build-input` 会检查 WinRT 依赖，或编译所选的 C# 后端。运行失败会报告并有限重试，不会静默切换后端。
+
+输入会话使用指定设备上的静音音频。媒体回调映射成“上一个、下一个、操作”。播放／暂停的首个回调立即生效，随后 250 毫秒内的同类回调合并；这不会增加首个动作的等待，但刻意快速连按也可能被合并。新的后端与处理方式仍需真机验收，不能据此保证一次按键一定对应一次动作。
+
+测试前先确认设备处于 **Bluetooth Music 播放页面**，并检查左右回调。摇杆上、下、中央按下和原机返回键没有应用映射。手机放歌与电脑显示并行需要单独验证。
 
 | 启动方式 | 画面 | 输入 |
 |---|---|---|
@@ -55,7 +62,7 @@ pixeldeck run dashboard --send --media
 | `pixeldeck run dashboard --send` | 电脑预览，同时蓝牙传图 | 电脑键盘和窗口按钮 |
 | `pixeldeck run dashboard --send --media` | 电脑预览，同时蓝牙传图 | 电脑操作，加上已支持的机身媒体动作 |
 
-传图状态和输入状态分别显示。传图 ACK 成功不能证明机身按键已经接通。可以用 `pixeldeck run buttons --send --media` 单独检查按一次是否加一。
+传图状态和输入状态分别显示。传图 ACK 成功不能证明机身按键已经接通。可以用 `pixeldeck run buttons --send --media` 观察实际收到的动作数量，再验收普通单击的行为。
 
 Windows 也可使用仓库内的启动脚本：
 
@@ -63,7 +70,7 @@ Windows 也可使用仓库内的启动脚本：
 powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Interactive -Demo dashboard
 ```
 
-`-Mode Preview` 只预览，`-Mode Display` 只增加传图，`-Mode Interactive` 同时接入媒体按键。默认是 Preview / dashboard；脚本不会自动安装依赖。加 `-Check` 只检查脱敏后的本地配置和依赖，不连接设备。其他参数见 [启动器说明](usage.md#windows-launcher)。
+`-Mode Preview` 只预览，`-Mode Display` 只增加传图，`-Mode Interactive` 同时接入媒体按键。`-InputBackend Auto|WinRT|Legacy` 可选择输入后端。默认是 Preview / dashboard；脚本不会自动安装依赖。加 `-Check` 只检查脱敏后的本地配置和依赖，不连接设备。其他参数见 [启动器说明](usage.md#windows-launcher)。
 
 蓝牙兼容性需要看 Classic RFCOMM、Windows 媒体配置和驱动是否可用，不能仅凭“蓝牙 4.x / 5.x”判断。当前真机证据只覆盖记录中的电脑与设备组合；[兼容性说明及微软资料](usage.md#bluetooth-compatibility) 列出了具体要求。`pixeldeck doctor` 不会连接设备，因此不能代替实际传图和按键验证。
 
@@ -75,11 +82,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Interacti
 
 选中 EXIT 后操作，或用窗口 Exit / Ctrl+Q，会关闭电脑端程序并释放连接。设备保留最后一帧，不会自动跳回原机菜单。这些选择、放大和返回操作也能通过已支持的三种媒体动作完成。
 
-## 十六张小卡带
+## 十八张小卡带
 
 | 名称 | 内容 | 操作 |
 |---|---|---|
 | dashboard | CPU、内存、网络、磁盘、电源总览 | 选择、放大、返回，EXIT 退出 |
+| link | 传输 ACK、输入计数、编号测试画面 | 左右选择面板，操作刷新快照，电脑 Back 返回 |
+| audio | 扬声器测试音、麦克风电平、双工测试 | 空闲时左右选模式，操作开始五秒测试；运行中操作／Back 停止 |
 | pulse | CPU 曲线、内存用量 | 冻结／恢复 |
 | buddy | 像素小伙伴 | 打招呼、冒爱心 |
 | rain | 霓虹字符雨 | 暂停／继续 |
@@ -97,6 +106,31 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Interacti
 | build | 推送式任务／构建进度和结果 | 切换详情 |
 
 图形预览见 [主 README](../README.md) 和 [新增实用工具总览](assets/useful-demos.png)。文档 GIF 是离线渲染，数据采用示例值，不代表蓝牙能达到同样帧率。硬件上传跟不上时会保留最新画面，而不是补播旧动画。
+
+Link Lab 会记录传输和输入，但不会因为收到 ACK 自动刷新并再次传图。按操作键后才更新快照，因此当前画面的 ACK 要到下一次快照才会显示。计数反映电脑收到的事件，不等于原始物理按键数。
+
+不连接设备也能运行底层演示：
+
+```shell
+python examples/device_lab.py
+python examples/driver_lab.py
+python examples/pipeline_lab.py
+```
+
+第一个默认只生成静态帧、多帧 clip 和亮度命令的发送计划；后两个分别模拟驱动应答／重传／超时，以及最新帧替换／去重／重连。只有 `device_lab.py` 显式加 `--send` 才会连接设备，例如 `--operation still --send`。clip 和亮度的物理效果仍需验证；亮度不会自动恢复，参数见 [使用说明](usage.md#device-write-lab)。
+
+## Audio Lab
+
+```shell
+pixeldeck audio-devices --match MiniToo
+pixeldeck run audio --audio --audio-input INPUT_ID --audio-output OUTPUT_ID
+```
+
+把 `INPUT_ID`、`OUTPUT_ID` 换成 `audio-devices` 列出的整数编号；不加 `--match` 可查看全部设备。SPEAKER 只需要输出，MIC 只需要输入，DUPLEX 需要两者。默认 `run audio` 不启用音频；即使加了 `--audio`，也要按操作键才会开始五秒测试。
+
+MIC 显示电平和波形；DUPLEX 同时播放独立测试音、观察麦克风，不把麦克风声音回放到扬声器。运行中操作／电脑 Back 可停止，离开页面也会停止。缺少所选模式需要的输入或输出时，会显示错误，不会偷偷换设备。加 `--send` 可把页面传到 MiniToo。
+
+程序不保存音频文件；退出时 `latest.png` 只保留最后的显示画面，可能包含电平图。文档波形是合成数据，列出设备也不代表播放、采集或双工效果已验证，这些都待最终真机验收。
 
 向 Build Beacon 推送一行 JSON 即可更新状态：
 

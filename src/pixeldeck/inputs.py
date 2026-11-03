@@ -7,8 +7,31 @@ import subprocess
 import threading
 import time
 from .config import home
+from .input_backends import input_command, select_backend
 
 BUTTONS={"Next":"next","Previous":"previous","Play":"activate","Pause":"activate"}
+
+
+class ActivationGuard:
+    """Deliver the first media activation immediately; merge its short burst.
+
+    This is an application policy, not a claim about physical key identity.
+    The window is measured from the accepted event, never extended by echoes.
+    """
+    def __init__(self, window=0.250):
+        if type(window) not in (int, float) or not math.isfinite(window) or not 0 <= window <= 1:
+            raise ValueError('Activation window must be finite and within 0..1 seconds')
+        self.window = window
+        self.accepted_at = None
+
+    def accept(self, event):
+        if event.get('type') != 'button' or event.get('raw') not in ('Play', 'Pause'):
+            return True
+        now = event['received_at']
+        if self.accepted_at is not None and 0 <= now - self.accepted_at < self.window:
+            return False
+        self.accepted_at = now
+        return True
 
 def decode_push(data):
     if not isinstance(data,dict): raise ValueError('Expected a JSON object')
@@ -27,8 +50,12 @@ def decode_push(data):
 def decode_media(line):
     data=json.loads(line)
     if data.get('type')=='button':
-        return {'type':'button','button':BUTTONS[data['value']], 'raw':data['value'],
-                'sequence':data['sequence'],'received_at':time.monotonic(),'source':'media'}
+        value=data['value']
+        if not isinstance(value,str): raise ValueError('Media button value must be a string')
+        event={'raw':value,'sequence':data['sequence'],'received_at':time.monotonic(),'source':'media'}
+        if value not in BUTTONS:
+            return {'type':'input.unmapped','name':value,**event}
+        return {'type':'button','button':BUTTONS[value],**event}
     return {'type':'input.status','kind':data.get('type'),'message':str(data.get('value',''))[:300]}
 
 def read_notices(stream, callback):
@@ -57,13 +84,15 @@ class MediaInput:
     """Supervise the blocking native stream with finite, cancellable retries."""
 
     class _Run:
-        def __init__(self, process, attempt):
+        def __init__(self, process, attempt, activation_window):
             self.process=process; self.attempt=attempt
             self.ready=False; self.expired=False; self.ended=False; self.timer=None
             self.stop_lock=threading.Lock()
+            self.activation=ActivationGuard(activation_window)
 
     def __init__(self, config, callback, *, process_factory=None, ready_timeout=30.0,
-                 restart_delay=1.0, max_restarts=2, stop_timeout=1.0):
+                 restart_delay=1.0, max_restarts=2, stop_timeout=1.0,
+                 backend='auto', activation_window=0.250):
         for name,value,allow_zero in (('ready_timeout',ready_timeout,False),
                                       ('restart_delay',restart_delay,True),
                                       ('stop_timeout',stop_timeout,False)):
@@ -71,20 +100,22 @@ class MediaInput:
                 raise ValueError(name+' must be finite and positive'+(' or zero' if allow_zero else ''))
         if type(max_restarts) is not int or not 0<=max_restarts<=2:
             raise ValueError('max_restarts must be 0, 1, or 2')
-        executable=home()/'native/MediaBridge.exe'
-        if not executable.exists(): raise FileNotFoundError('Run pixeldeck build-input first')
+        ActivationGuard(activation_window)
+        self.backend=select_backend(backend)
+        self._activation_window=activation_window
         self.closed=False; self.callback=callback
         self.process=None; self._run=None
         self._stop=threading.Event(); self._state_lock=threading.RLock()
         self._factory=process_factory or subprocess.Popen
-        self._command=[str(executable),config.endpoint,str(Path(__file__).parent/'native/silence.wav')]
+        self._command=input_command(config,self.backend)
         self._ready_timeout=ready_timeout; self._restart_delay=restart_delay
         self._max_restarts=max_restarts; self._stop_timeout=stop_timeout
         self.thread=threading.Thread(target=self._read,name='pixeldeck-input',daemon=True); self.thread.start()
 
     def _emit(self, event, run=None):
         with self._state_lock:
-            if not self.closed and (run is None or self._run is run): self.callback(event)
+            if not self.closed and (run is None or self._run is run):
+                self.callback(dict(event,backend=self.backend))
 
     def _launch(self, attempt):
         with self._state_lock:
@@ -92,7 +123,7 @@ class MediaInput:
             process=self._factory(self._command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,text=True,encoding='utf-8',bufsize=1,
                 creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-            run=self._Run(process,attempt); self._run=run; self.process=process
+            run=self._Run(process,attempt,self._activation_window); self._run=run; self.process=process
             run.timer=threading.Timer(self._ready_timeout,self._deadline,args=(run,))
             run.timer.daemon=True; run.timer.start()
             return run
@@ -134,6 +165,10 @@ class MediaInput:
                     with self._state_lock:
                         if self.closed or self._run is not run or run.expired: break
                         event=decode_media(line)
+                        if not run.activation.accept(event):
+                            self._emit(dict(event,type='input.coalesced',
+                                            message='Paired media activation coalesced'),run)
+                            continue
                         if event.get('kind')=='ready':
                             run.ready=True; run.timer.cancel()
                         # EOF supplies the exit code and is the authoritative stop event.

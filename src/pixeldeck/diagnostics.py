@@ -11,6 +11,7 @@ import shutil
 import socket
 
 from .config import home
+from .input_backends import winrt_status
 
 
 def _windows():
@@ -87,6 +88,8 @@ def report(config):
         "device_configured": bool(config.address),
         "pairing": _pairing(config, windows),
         "media_input": {
+            "winrt": winrt_status(),
+            "selection_policy": "auto prefers available WinRT dependencies; legacy can be selected explicitly",
             "bridge_built": _is_file(home() / "native" / "MediaBridge.exe"),
             "endpoint_configured": bool(config.endpoint.strip()),
             "endpoint_verified": False,

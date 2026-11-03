@@ -64,6 +64,15 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(ValueError): upload(bytes(16001))
         for value in (-1,101,True,1.2):
             with self.assertRaises(ValueError): brightness_packet(value)
+    def test_clip_rejects_an_infinite_iterable_after_a_bounded_read(self):
+        consumed=[]
+        def pictures():
+            while True:
+                consumed.append(1)
+                if len(consumed)>256: raise AssertionError('Unbounded frame consumption')
+                yield None
+        with self.assertRaises(ValueError): jpeg_clip(pictures())
+        self.assertEqual(len(consumed),256)
     def test_transparent_image_is_composited(self):
         image=fit_image(Image.new('RGBA',(10,10),(255,0,0,0)))
         self.assertEqual(image.size,(160,128)); self.assertEqual(image.getbbox(),None)
@@ -99,6 +108,9 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(len(device._messages),0); self.assertFalse(device.healthy)
 
 class EngineTests(unittest.TestCase):
+    def test_invalid_retry_budget_never_starts_the_sink(self):
+        for value in (-1,6,1.5,True):
+            with self.assertRaises(ValueError): FramePump(lambda:self.fail('Sink must not be started'),retries=value)
     def test_idle_disconnect_resends_last_state_without_new_input(self):
         first_ack=threading.Event(); recovered=threading.Event(); sinks=[]; reports=[]
         class Sink:
@@ -186,7 +198,7 @@ class DemoTests(unittest.TestCase):
         demo.handle(event,125); self.assertEqual(demo.left(900),35); self.assertIsNone(demo.next_delay(900))
         demo.handle(event,900); demo.handle({'type':'tick'},940)
         self.assertEqual(demo.left(940),0); demo.handle(event,945); self.assertEqual(demo.left(945),60)
-    def test_media_play_pause_both_advance_once(self):
+    def test_decoder_preserves_each_raw_media_callback(self):
         demo=create('buttons')
         for i,name in enumerate(['Pause','Play']*10):
             event=decode_media(json.dumps({'type':'button','value':name,'sequence':i}))

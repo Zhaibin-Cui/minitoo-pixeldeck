@@ -1,6 +1,7 @@
 """Repeatable gallery rendering with explicitly synthetic telemetry fixtures."""
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+import math
 from PIL import Image
 from .demos import create
 
@@ -29,9 +30,26 @@ def specimen(name, now=0):
         demo.handle({'type':'power','available':True,'present':True,'percent':67,'plugged':False,'seconds_left':9060},0)
     if name=='build':
         demo.handle({'type':'build','project':'PIXEL ENGINE','state':'running','progress':64,'step':'COMPILE SHADERS'},0)
+    if name=='link':
+        for i in range(24):
+            demo.observe({'type':'frame.ack','sequence':i+1,'transfer_ms':260+(i*17)%170,
+                          'bytes':4096+i*32,'chunks':16+i//8,'retransmissions':int(i%7==0),
+                          'replaced':3,'input_to_ack_ms':440+i},i-24)
+        demo.observe({'type':'input.status','kind':'ready'},0)
+        demo.observe({'type':'button','button':'activate','source':'media','raw':'Pause'},0)
+        demo.observe({'type':'button','button':'activate','source':'desktop','raw':'KEYBOARD'},0)
+        demo.observe({'type':'input.coalesced'},0)
+        demo.handle({'type':'button','button':'activate'},0)
+        demo.handle({'type':'button','button':'back'},0)
+    if name=='audio':
+        demo.handle({'type':'audio.status','state':'ready','mode':'duplex'},0)
+        demo.handle({'type':'audio.level','mode':'duplex','elapsed':2.4,'rms':.34,'peak':.78,
+                     'waveform':[.65*math.sin(i*.55) for i in range(32)]},0)
     return demo
 
 def frames(name,seconds=4,fps=8):
+    if type(seconds) is not int or not 1 <= seconds <= 15 or type(fps) is not int or not 1 <= fps <= 30:
+        raise ValueError('Preview duration must be 1..15 seconds and frame rate 1..30')
     demo=specimen(name)
     for index in range(seconds*fps):
         now=index/fps
@@ -50,10 +68,23 @@ def frames(name,seconds=4,fps=8):
         if name=='power' and index==16: demo.handle({'type':'button','button':'activate'},now)
         if name=='dashboard' and index in (8,16,24):
             demo.handle({'type':'button','button':{8:'activate',16:'next',24:'back'}[index]},now)
+        if name=='link' and index in (8,16,24,27,30):
+            demo.handle({'type':'button','button':'next' if index in (16,24) else 'activate'},now)
+        if name=='audio':
+            span=max(1,seconds*fps//3)
+            mode_index=min(2,index//span)
+            mode=('speaker','microphone','duplex')[mode_index]
+            amplitude=.35+.25*(.5+.5*math.sin(now*3))
+            demo.handle({'type':'audio.status','state':'ready','mode':mode},now)
+            demo.handle({'type':'audio.level','mode':mode,'elapsed':(index-mode_index*span)/fps,
+                         'rms':amplitude/math.sqrt(2),'peak':amplitude,
+                         'waveform':[amplitude*math.sin(i*.55+now*4) for i in range(32)]},now)
         demo.handle({'type':'tick'},now)
         yield demo.render(now)
 
 def export_demo(name,path,seconds=4):
+    if type(seconds) is not int or not 1 <= seconds <= 15:
+        raise ValueError('Preview duration must be 1..15 seconds')
     path=Path(path); path.parent.mkdir(parents=True,exist_ok=True)
     if path.suffix.lower()=='.png': specimen(name).render(1).save(path); return
     if path.suffix.lower()!='.gif': raise ValueError('Output must be PNG or GIF')
