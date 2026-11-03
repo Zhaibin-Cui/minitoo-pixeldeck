@@ -4,12 +4,12 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-9affb3?style=flat-square&amp;labelColor=152440" alt="License: MIT"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python_core-3.10%2B-54edff?style=flat-square&amp;labelColor=152440" alt="Python core: 3.10+"></a>
   <a href="docs/usage.md#bluetooth-compatibility"><img src="https://img.shields.io/badge/live_backend-Windows-ff73bc?style=flat-square&amp;labelColor=152440" alt="Live backend: Windows"></a>
-  <a href="docs/validation.md"><img src="https://img.shields.io/badge/0.6.1-185_offline_tests_passed-9affb3?style=flat-square&amp;labelColor=152440" alt="0.6.1: 185 offline tests passed"></a>
+  <a href="docs/validation.md"><img src="https://img.shields.io/badge/0.6.2-205_offline_tests_passed-9affb3?style=flat-square&amp;labelColor=152440" alt="0.6.2: 205 offline tests passed"></a>
 </p>
 
 <p align="center"><strong>MiniToo protocol tools, live pixels and interactive demos.</strong><br>
 Protocol tools · independent streams · eighteen original pixel cartridges<br>
-Python 3.10+ core · Python 3.11+ WinRT input · MIT · v0.6.1</p>
+Python 3.10+ core · Python 3.11+ WinRT input · MIT · v0.6.2</p>
 
 MiniToo Pixeldeck is an independent, unofficial reverse-engineering toolkit for the **Divoom MiniToo**. Send images, build interactive pixel scenes, inspect the protocol, or use the display as a miniature system monitor. The software runs on your computer and leaves the device firmware unchanged. Importing the package never connects a device.
 
@@ -216,7 +216,7 @@ pixeldeck audio-devices --match MiniToo
 pixeldeck run audio --audio --audio-input INPUT_ID --audio-output OUTPUT_ID
 ```
 
-Replace the IDs with endpoints reported by `audio-devices`. Left / Right chooses a mode while idle; Activate starts its five-second test. Activate or desktop Back stops an active test, and leaving the page stops audio. Add `--send` to display it on the MiniToo. Endpoint discovery is not proof of working playback or capture; physical audio tests are pending. [Audio setup →](docs/usage.md#audio-lab)
+Replace the IDs with endpoints reported by `audio-devices`. Left / Right chooses a mode while idle; Activate starts its five-second test. Activate or desktop Back stops an active test, and leaving the page stops audio. The final SESSION view retains measured RMS, peak and frame coverage. Add `--send` to display it on the MiniToo. Speaker, microphone and duplex operation have been checked on one Windows setup; device display updates slow down during capture. [Audio setup →](docs/usage.md#audio-lab) · [Observed results →](docs/validation.md#audio-lab--2026-11-03)
 
 ### System monitors and desk tools
 

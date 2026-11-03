@@ -1,4 +1,5 @@
 """Audio cartridge checks with synthetic events and no audio provider imports."""
+import copy
 import math
 import unittest
 
@@ -143,6 +144,88 @@ class AudioLabTests(unittest.TestCase):
         self.assertEqual(image.getpixel((107, 61)), ImageColor.getrgb(PINK))
         self.assertEqual(lab.waveform, (-1., 1.))
         self.assertLessEqual(len(_dbfs_label(_dbfs(math.nextafter(0, 1)))), 6)
+
+    def test_live_peak_hold_uses_event_elapsed_without_changing_window_peak(self):
+        lab = AudioLab()
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
+        for elapsed, peak, held in ((0, .8, .8), (.25, .1, .8), (.75, .3, .8),
+                                    (1.01, .2, .3), (1.8, .1, .2), (2.02, 0, .1)):
+            lab.handle({'type': 'audio.level', 'elapsed': elapsed, 'rms': peak/2, 'peak': peak}, 0)
+            self.assertEqual(lab.peak, peak)
+            self.assertEqual(lab._display_levels(), (peak/2, held))
+        before = lab.render(0).tobytes()
+        self.assertEqual(lab.render(10000).tobytes(), before)
+        self.assertIsNone(lab.next_delay(10000))
+
+    def test_stopped_uses_real_session_summary_instead_of_final_quiet_window(self):
+        lab = AudioLab()
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
+        lab.handle({'type': 'audio.level', 'elapsed': .25, 'rms': .2, 'peak': .8,
+                    'session_rms': .2, 'session_peak': .8,
+                    'metered_frames': 12000, 'dropped_frames': 0}, 0)
+        lab.handle({'type': 'audio.level', 'elapsed': 5, 'rms': 0, 'peak': 0,
+                    'waveform': [0]*32, 'session_rms': .14, 'session_peak': .8,
+                    'metered_frames': 240000, 'dropped_frames': 64}, 0)
+        self.assertEqual(lab._display_levels(), (0, 0))
+        lab.handle({'type': 'audio.status', 'state': 'stopped', 'elapsed': 5,
+                    'session_rms': .139, 'session_peak': .81,
+                    'metered_frames': 240128, 'dropped_frames': 64}, 0)
+        self.assertEqual(lab._display_levels(), (.139, .81))
+        self.assertEqual((lab.rms, lab.peak, lab.waveform), (0, 0, (0,)*32))
+        self.assertEqual((lab.metered_frames, lab.dropped_frames), (240128, 64))
+        self.assertEqual(lab._state_label()[0], 'SESSION')
+        self.assertLessEqual(len(jpeg_clip([lab.render(0)])), MAX_BLOB)
+
+    def test_missing_summary_stays_unknown_and_existing_summary_survives_status_only_stop(self):
+        lab = AudioLab()
+        lab.handle({'type': 'audio.level', 'rms': .3, 'peak': .6}, 0)
+        lab.handle({'type': 'audio.status', 'state': 'stopped'}, 0)
+        self.assertEqual(lab._display_levels(), (None, None))
+        lab.handle({'type': 'audio.level', 'session_rms': .2, 'session_peak': .7,
+                    'metered_frames': 100, 'dropped_frames': 2}, 0)
+        lab.handle({'type': 'audio.status', 'state': 'stopped'}, 0)
+        self.assertEqual(lab._display_levels(), (.2, .7))
+        self.assertEqual((lab.metered_frames, lab.dropped_frames), (100, 2))
+
+    def test_new_summary_fields_are_validated_before_any_state_change(self):
+        lab = AudioLab()
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
+        lab.handle({'type': 'audio.level', 'elapsed': 1, 'rms': .2, 'peak': .6,
+                    'session_rms': .2, 'session_peak': .6,
+                    'metered_frames': 48000, 'dropped_frames': 0}, 0)
+        previous = copy.deepcopy(vars(lab))
+        for kind in ('audio.status', 'audio.level'):
+            for field, value in (('session_rms', float('nan')), ('session_peak', 1.1),
+                                 ('metered_frames', -1), ('dropped_frames', True),
+                                 ('metered_frames', 1.5), ('elapsed', None)):
+                with self.subTest(kind=kind, field=field), self.assertRaises(ValueError):
+                    lab.handle({'type': kind, 'state': 'stopped', 'mode': 'duplex',
+                                'elapsed': 2, field: value}, 0)
+                self.assertEqual(vars(lab), previous)
+
+    def test_history_is_bounded_old_windows_ignored_and_new_test_clears_summary(self):
+        lab = AudioLab()
+        for index in range(100):
+            lab.handle({'type': 'audio.level', 'elapsed': index/4, 'rms': .1, 'peak': .5,
+                        'session_rms': .1, 'session_peak': .5, 'metered_frames': index*12000}, 0)
+        self.assertEqual(len(lab.peak_history), 20)
+        previous = copy.deepcopy(vars(lab))
+        lab.handle({'type': 'audio.level', 'elapsed': 1, 'rms': 1, 'peak': 1}, 0)
+        self.assertEqual(vars(lab), previous)
+        self.action(lab, 'activate')
+        self.assertEqual(len(lab.peak_history), 0)
+        self.assertIsNone(lab.held_peak)
+        self.assertIsNone(lab.session_rms)
+        self.assertIsNone(lab.metered_frames)
+
+    def test_error_remains_visible_with_session_summary(self):
+        lab = AudioLab()
+        lab.handle({'type': 'audio.status', 'state': 'error', 'mode': 'microphone',
+                    'message': 'Input stream failed', 'session_rms': .1, 'session_peak': .5,
+                    'metered_frames': 1000, 'dropped_frames': 50}, 0)
+        self.assertEqual(lab._state_label()[0], 'UNAVAILABLE')
+        self.assertEqual(lab.message, 'Input stream failed')
+        self.assertFalse(lab.active)
 
 
 if __name__ == '__main__':

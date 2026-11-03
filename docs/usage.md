@@ -110,7 +110,13 @@ Replace the IDs with the integer indices returned by `audio-devices`; run it wit
 
 While idle, Left / Right selects the mode. Activate starts the test; Activate or desktop Back stops it. Back while idle leaves Audio Lab, and choosing another cartridge cancels an active test. A missing input/output direction produces a visible error instead of selecting a different device. Add `--send` for MiniToo display output; audio output itself does not require that flag.
 
-Meters show actual dBFS; the bar spans -60 to 0 dBFS. The WAVE X16 scope magnifies only plotted samples, not the microphone signal or system recording gain. Zero is shown as -INF, and missing data as --. No audio file is recorded. On shutdown, the host's `latest.png` stores only its last display image, which may include the level graph. Device enumeration and offline stream tests do not verify physical playback, capture or duplex operation; those acceptance checks remain pending.
+Live meters show each reported 100 ms window in dBFS, with a one-second peak hold and a bar spanning -60 to 0 dBFS. Reports arrive at most ten times per second; Bluetooth display uploads can be slower. The WAVE X16 scope magnifies only its plotted peak-bin preview, not the microphone signal or system recording gain. Zero is shown as -INF, and missing data as --. Speaker mode measures generated output PCM; MIC and DUPLEX measure microphone PCM.
+
+After completion or manual stop, SESSION retains the sample-weighted RMS and highest peak across all measured windows, including the final partial window. Its graph shows the last 20 reported window peaks. FRAMES counts metered audio frames; DROP counts frames the software meter could not retain. These counts are separate from PortAudio `xruns`, whose lost-frame count is unknown. A new test clears the previous result.
+
+No audio file is recorded. On shutdown, the host's `latest.png` stores only its last display image, which may include the level graph. Short physical checks confirmed repeated speaker tones, visible microphone levels and concurrent duplex operation on the tested setup. The computer preview remained responsive, while the device screen was noticeably slow; pending pictures were replaced rather than replayed later.
+
+In the instrumented duplex trial, experimental 2 ms packet pacing took 62–78 ms to hand image chunks to the socket, followed by 750–984 ms waiting for completion; total transfers were 922–1172 ms. The completion wait includes downstream buffering and device work. The general 10 ms pacing default remains unchanged. Audio and display workers share radio and device resources; the reported 26.375 ms native stream estimates do not measure acoustic-to-visible latency. See the [audio evidence and remaining lifecycle checks](validation.md#audio-lab--2026-11-03).
 
 ## Device write lab
 

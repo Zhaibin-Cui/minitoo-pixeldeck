@@ -1,5 +1,5 @@
 {
-  "version": "0.6.1",
+  "version": "0.6.2",
   "date": "2026-11-03",
   "platform": "Windows",
   "python": "3.12.14",
@@ -7,10 +7,10 @@
   "tk": 8.6,
   "tests": {
     "errors": 0,
-    "run": 185,
+    "run": 205,
     "skipped": 0,
     "failures": 0,
-    "seconds": 26.387
+    "seconds": 27.541
   },
   "renderers_checked": 18,
   "native_validation_version": "0.5.0",
@@ -40,11 +40,14 @@
   "hosted_ci_run": false,
   "audio": {
     "dependency": "sounddevice 0.5.6",
-    "physical_playback_checked": false,
-    "physical_duplex_checked": false,
-    "offline_tests": 32,
-    "physical_microphone_checked": false,
-    "endpoint_enumeration_checked": true
+    "physical_playback_checked": true,
+    "physical_duplex_checked": true,
+    "offline_tests": 50,
+    "physical_microphone_checked": true,
+    "endpoint_enumeration_checked": true,
+    "duplex_operator_report": "audible prompt and responding computer meter; instrumented short trial recorded in hardware-audio.json",
+    "display_latency": "noticeable during capture; see validation.md",
+    "hardware_record": "hardware-audio.json"
   },
   "winrt_production_physical_acceptance": false,
   "activation_guard_physical_acceptance": false,

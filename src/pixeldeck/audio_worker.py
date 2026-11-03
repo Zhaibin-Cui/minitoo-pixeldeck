@@ -16,6 +16,8 @@ class AudioWorker:
         self.guard = threading.Lock()
         self.closed = False
         self.generation = 0
+        self.active_generation = None
+        self.completed_generation = 0
         self.cancelled = threading.Event()
         self.thread = threading.Thread(target=self._run, name='pixeldeck-audio', daemon=True)
         self.thread.start()
@@ -25,6 +27,8 @@ class AudioWorker:
             raise ValueError('Unknown audio mode')
         if type(seconds) not in (int, float) or not 0 < seconds <= 10:
             raise ValueError('Audio duration must be within 0..10 seconds')
+        if mode is None:
+            return self.stop()
         with self.guard:
             if self.closed:
                 return False
@@ -35,7 +39,18 @@ class AudioWorker:
             return True
 
     def stop(self):
-        return self.request(None)
+        with self.guard:
+            if self.closed:
+                return False
+            self.cancelled.set()
+            if self.generation in (self.active_generation, self.completed_generation):
+                # Preserve an active job's final partial window, or a completed
+                # job's terminal event that the UI may not have consumed yet.
+                return True
+            self.cancelled = threading.Event()
+            self.generation += 1
+            self.pending.put((self.generation, None, 0, self.cancelled))
+            return True
 
     def _emit(self, generation, event):
         with self.guard:
@@ -49,8 +64,15 @@ class AudioWorker:
             if job is None:
                 return
             generation, mode, seconds, cancelled = job
-            if cancelled.is_set():
-                continue
+            with self.guard:
+                if self.closed:
+                    return
+                if cancelled.is_set():
+                    continue
+                if mode is not None:
+                    self.active_generation = generation
+                else:
+                    self.completed_generation = generation
             if mode is None:
                 self._emit(generation, {'type': 'audio.status', 'state': 'stopped', 'message': 'Audio stopped'})
                 continue
@@ -61,6 +83,11 @@ class AudioWorker:
             except Exception as exc:
                 emit({'type': 'audio.status', 'state': 'error', 'mode': mode,
                       'message': f'Audio unavailable: {type(exc).__name__}: {exc}'[:200]})
+            finally:
+                with self.guard:
+                    self.completed_generation = generation
+                    if self.active_generation == generation:
+                        self.active_generation = None
 
     def close(self):
         with self.guard:

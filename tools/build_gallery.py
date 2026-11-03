@@ -5,7 +5,7 @@ import sys
 from PIL import Image, ImageDraw
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'))
-from pixeldeck.demos import CATALOG
+from pixeldeck.demos import CATALOG, create
 from pixeldeck.export import export_demo, specimen
 from pixeldeck.pixels import Canvas, INK, PANEL, LINE, WHITE, CYAN, PINK, MINT, MUTED, GOLD
 OUT=ROOT/'docs/assets'; OUT.mkdir(parents=True,exist_ok=True)
@@ -55,6 +55,32 @@ def hero(t=0):
     text(out,817,501,'ORIGINAL RENDER / DEVICE ILLUSTRATION',MUTED,1,True)
     return out
 
+def audio_gallery():
+    """Synthetic 48 kHz mono windows, then a retained five-second summary."""
+    demo=create('audio'); pictures=[]; squares=0; peak=0
+    demo.handle({'type':'audio.status','state':'ready','mode':'microphone','elapsed':0},0)
+    for index in range(50):
+        elapsed=(index+1)/10
+        amplitude=.012+.032*(.5+.5*math.sin(elapsed*2.7))
+        samples=[amplitude*math.sin(i*math.tau/16+elapsed*3) for i in range(64)]
+        window_squares=sum(value*value for value in samples)
+        window_peak=max(abs(value) for value in samples)
+        squares+=window_squares; peak=max(peak,window_peak)
+        summary={'session_rms':math.sqrt(squares/((index+1)*64)),
+                 'session_peak':peak,'metered_frames':(index+1)*4800,'dropped_frames':0}
+        demo.handle({'type':'audio.level','mode':'microphone','elapsed':elapsed,
+                     'rms':math.sqrt(window_squares/64),'peak':window_peak,
+                     'waveform':[max(samples[i:i+2],key=abs) for i in range(0,64,2)],
+                     **summary},elapsed)
+        pictures.append(demo.render(elapsed))
+    demo.handle({'type':'audio.status','state':'stopped','mode':'microphone',
+                 'elapsed':5,**summary},5)
+    pictures.extend(demo.render(5) for _ in range(10))
+    return demo,pictures
+
+def gallery_specimen(name):
+    return audio_gallery()[0] if name=='audio' else specimen(name)
+
 def overview(names=None,title='THE CARTRIDGE COLLECTION'):
     names=list(CATALOG if names is None else names)
     rows=math.ceil(len(names)/3)
@@ -65,7 +91,7 @@ def overview(names=None,title='THE CARTRIDGE COLLECTION'):
     for index,name in enumerate(names):
         x=24+(index%3)*352; y=105+(index//3)*330
         d.rectangle((x,y,x+331,y+309),fill=PANEL,outline=LINE)
-        out.paste(specimen(name).render(1).resize((320,256),Image.Resampling.NEAREST),(x+6,y+6))
+        out.paste(gallery_specimen(name).render(1).resize((320,256),Image.Resampling.NEAREST),(x+6,y+6))
         text(out,x+12,y+277,name,CYAN,2)
     footer=105+rows*330
     d.line((24,footer,1055,footer),fill=LINE,width=2)
@@ -139,8 +165,15 @@ def io_map():
 
 if __name__=='__main__':
     for name in CATALOG:
-        export_demo(name,OUT/(name+'.gif'))
-        export_demo(name,OUT/(name+'.png'))
+        if name=='audio':
+            demo,pictures=audio_gallery()
+            demo.render(5).save(OUT/'audio.png')
+            pictures=[frame.resize((320,256),Image.Resampling.NEAREST) for frame in pictures]
+            pictures[0].save(OUT/'audio.gif',save_all=True,append_images=pictures[1:],
+                             duration=100,loop=0,optimize=False,disposal=2)
+        else:
+            export_demo(name,OUT/(name+'.gif'))
+            export_demo(name,OUT/(name+'.png'))
     hero().save(OUT/'hero.png')
     shots=[hero(i/3) for i in range(12)]
     shots[0].save(OUT/'hero.gif',save_all=True,append_images=shots[1:],duration=333,loop=0,optimize=False)

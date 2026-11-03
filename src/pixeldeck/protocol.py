@@ -86,7 +86,7 @@ def jpeg_clip(images, period_ms=1000, quality=72):
         if image.size != SIZE:
             raise ValueError("Frame must be 160 x 128")
         data = io.BytesIO()
-        image.convert("RGB").save(data, format="JPEG", quality=quality, subsampling=0)
+        image.convert("RGB").save(data, format="JPEG", quality=quality, subsampling=0, optimize=True)
         encoded = data.getvalue()
         out.extend(b"\x01" + struct.pack(">I", len(encoded)) + encoded)
         if len(out) > MAX_BLOB:

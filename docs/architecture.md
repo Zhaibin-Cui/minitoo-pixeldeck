@@ -32,7 +32,11 @@ Link Lab observes transfer and input events without requesting redraws. Activate
 
 Audio Lab is a callback-fed renderer with no idle timer. Entering its page opens no audio device. The host requires `--audio` and explicit endpoint indices, then starts a five-second stream only on an activation request. Input levels and a bounded waveform become events; the cartridge performs no audio I/O. Speaker output is an independent test tone, never microphone loopback. Leaving the page cancels the stream.
 
-Output packet pacing, one-shot transmission deadlines and bounded reconnect backoff are intentional waits. They do not poll for button events. Multiple Bluetooth profiles still share hardware resources.
+The audio callback copies PCM into four preallocated 100 ms slots sized for the selected sample rate and channel count. It never waits for the metering worker; contention or a full buffer increments `dropped_frames`. The worker measures every retained window, including the final partial window after stream closure. Live reports are limited to ten per second, with at most 32 signed peak-bin points for the waveform. Session RMS is sample-weighted across all measured PCM, and session peak is its largest absolute sample. `metered_frames` and `dropped_frames` count audio frames, not channel samples; PortAudio `xruns` report separate host disruptions whose lost-frame count is unknown.
+
+Audio Lab holds the live peak for one second of reported stream time. After stopping, its SESSION view retains the session measurements and the last 20 reported window peaks. An explicit stop preserves the active job's terminal summary; a new request advances the generation so events from the superseded job are discarded.
+
+Output packet pacing, one-shot transmission deadlines and bounded reconnect backoff are intentional waits. They do not poll for button events. The general packet-pacing default remains 10 ms. Separate audio and display workers still share host, radio and device resources.
 
 ## Bounds
 
@@ -52,9 +56,11 @@ Output packet pacing, one-shot transmission deadlines and bounded reconnect back
 | Diagnostic packet trace | 32 packets |
 | Timing window | 256 completed sends |
 | Link Lab latency history | 24 samples |
-| Audio Lab waveform | 32 displayed samples |
-| Latest audio PCM preview | 16 KiB |
-| Audio level reports | At most 4 per second |
+| Audio Lab waveform | 32 signed peak-bin points |
+| Audio PCM buffer | 4 × 100 ms slots at the selected sample rate and channel count, int16 |
+| Audio Lab peak history | 20 reported window peaks |
+| Live audio peak hold | 1 second of reported stream time |
+| Audio level reports | At most 10 per second; independent of display upload rate |
 | Pending audio job | 1 |
 | Audio job duration | At most 10 seconds through the API; 5 seconds in Audio Lab |
 | Live encoded payload | 16,000 bytes |
@@ -74,7 +80,7 @@ Stopping closes the output socket, stops the media bridge through stdin, release
 
 The protocol and cartridges depend only on Python and Pillow. Optional psutil-backed sources supply network and battery observations; unsupported or missing observations stay unavailable. Clock and storage sources use the standard library. Storage covers at most eight local fixed volumes on Windows and the root filesystem on POSIX hosts. Source dependencies do not enter renderer modules.
 
-The optional audio backend uses sounddevice/PortAudio outside the cartridge. It opens only the explicitly selected input/output directions and records no audio files. Its local display snapshot is an image of the last rendered state, not a sound recording. Physical audio compatibility is still awaiting acceptance tests.
+The optional audio backend uses sounddevice/PortAudio outside the cartridge. It opens only the explicitly selected input/output directions and records no audio files. Streams request `latency='low'` with native block sizing (`blocksize=0`). Event fields `input_latency_ms` and `output_latency_ms` contain the opened streams' host-reported estimates, or `None` when unavailable; they are not measurements of acoustic-to-visible latency. Its local display snapshot is an image of the last rendered state, not a sound recording. Short hardware trials confirmed speaker, microphone and duplex operation on the tested setup, with noticeable device display delay during capture. Meter report cadence does not guarantee the same physical display rate; see the [audio evidence](validation.md#audio-lab--2026-11-03).
 
 `audio.py` implements endpoint queries and stream I/O; `audio_worker.py` owns cancellable jobs and generation-tagged events. Inject a `backend_factory` into `AudioWorker` to replace the audio implementation. Its backend provides `run(mode, seconds, stop_event, callback)` and must honor cancellation; the cartridge remains independent of PortAudio.
 

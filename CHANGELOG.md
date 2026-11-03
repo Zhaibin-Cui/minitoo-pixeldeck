@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.2
+
+- Meter continuous audio through four bounded 100 ms windows; report session RMS, peak and measured/dropped frames, including the final partial window.
+- Request low native stream latency and expose each stream's reported latency separately from display timing.
+- Retain SESSION results after stopping, with a one-second live peak hold and recent peak history.
+- Preserve completed summaries and errors when Stop races with queued UI events.
+- Reduce JPEG payloads without changing decoded pixels; add announce, send and completion timing to display reports.
+
 ## 0.6.1
 
 - Fix media input from source-checkout launchers: child processes inherit the package path and use UTF-8 output.

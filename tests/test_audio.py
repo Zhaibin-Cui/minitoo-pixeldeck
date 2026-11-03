@@ -2,11 +2,13 @@
 from array import array
 import builtins
 import json
+import math
 import threading
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from pixeldeck.audio import AudioBackend, _levels, _load_sounddevice, _tone, list_devices
+from pixeldeck.audio import AudioBackend, _WindowMeter, _levels, _load_sounddevice, _stream_latency_ms, _tone, list_devices
 
 
 class FakeStream:
@@ -14,6 +16,7 @@ class FakeStream:
         self.owner, self.direction, self.values = owner, direction, values
         self.started = self.aborted = self.closed = False
         self.output = None
+        self.latency = .012 if direction == 'input' else .034
 
     def start(self):
         self.started = True
@@ -97,6 +100,50 @@ class AudioTests(unittest.TestCase):
         load.assert_not_called()
         self.assertEqual(events[-1]['state'], 'stopped')
 
+    def test_actual_stream_latencies_are_reported_independently_of_the_low_request(self):
+        sd = FakeSoundDevice()
+        stopped = threading.Event()
+        events = []
+
+        def receive(event):
+            events.append(event)
+            if event.get('state') == 'ready':
+                stopped.set()
+
+        AudioBackend(0, 1, sd).run('duplex', 5, stopped, receive)
+        for event in (next(event for event in events if event.get('state') == 'ready'), events[-1]):
+            self.assertEqual(event['input_latency_ms'], 12)
+            self.assertEqual(event['output_latency_ms'], 34)
+        self.assertTrue(all(stream.values['latency'] == 'low' for stream in sd.streams))
+
+    def test_unavailable_or_invalid_native_latency_stays_unknown(self):
+        for value in (None, -1, float('nan'), float('inf'), 1e308, True, '0.01', (0.01, 0.02)):
+            with self.subTest(value=value):
+                self.assertIsNone(_stream_latency_ms(SimpleNamespace(latency=value)))
+        self.assertIsNone(_stream_latency_ms(object()))
+
+        class Unavailable:
+            @property
+            def latency(self):
+                raise RuntimeError('Native latency unavailable')
+
+        self.assertIsNone(_stream_latency_ms(Unavailable()))
+        self.assertEqual(_stream_latency_ms(SimpleNamespace(latency=0)), 0)
+
+    def test_inactive_stream_direction_has_no_reported_latency(self):
+        sd = FakeSoundDevice()
+        stopped = threading.Event()
+        events = []
+
+        def receive(event):
+            events.append(event)
+            if event.get('state') == 'ready':
+                stopped.set()
+
+        AudioBackend(input_device=0, sd_module=sd).run('microphone', 5, stopped, receive)
+        self.assertEqual(events[-1]['input_latency_ms'], 12)
+        self.assertIsNone(events[-1]['output_latency_ms'])
+
     def test_missing_dependency_explains_optional_extra(self):
         original_import = builtins.__import__
 
@@ -150,6 +197,8 @@ class AudioTests(unittest.TestCase):
         self.assertEqual(output_stream.values['samplerate'], 48000)
         self.assertEqual(input_stream.values['channels'], 1)
         self.assertEqual(output_stream.values['channels'], 2)
+        self.assertTrue(all(stream.values['latency'] == 'low' for stream in sd.streams))
+        self.assertTrue(all(stream.values['blocksize'] == 0 for stream in sd.streams))
         self.assertTrue(all(stream.aborted and stream.closed for stream in sd.streams))
         level = next(event for event in events if event['type'] == 'audio.level')
         self.assertAlmostEqual(level['rms'], 12000/32768)
@@ -239,6 +288,125 @@ class AudioTests(unittest.TestCase):
         self.assertLessEqual(max(abs(value) for value in memoryview(rendered).cast('h')), 1400)
         self.assertTrue(sd.streams[0].aborted and sd.streams[0].closed)
         self.assertEqual(events[-1]['state'], 'stopped')
+
+    def test_fragmented_callbacks_capture_a_transient_before_the_old_sample_boundary(self):
+        meter = _WindowMeter(8000, 1, 5)
+        # Ten ten-millisecond callbacks: only an early callback has a transient.
+        # A full measurement is available at 100 ms, without waiting for 250 ms.
+        for block in range(10):
+            data = array('h', [0]*80)
+            if block == 2:
+                data[37] = -24576
+            meter.offer(data.tobytes(), 80)
+        record = meter.take()
+        self.assertEqual(record[1], 800)
+        meter.measure(record)
+        self.assertAlmostEqual(meter.latest['rms'], .75/math.sqrt(800))
+        self.assertEqual(meter.latest['peak'], .75)
+        self.assertIn(-.75, meter.latest['waveform'])
+        self.assertLessEqual(len(meter.latest['waveform']), 32)
+        self.assertEqual(meter.summary()['metered_frames'], 800)
+        self.assertEqual(meter.summary()['dropped_frames'], 0)
+
+    def test_session_rms_weights_partial_window_samples_and_counts_frames_not_channels(self):
+        meter = _WindowMeter(8000, 2, 5)
+        meter.offer(array('h', [16384]*1600).tobytes(), 800)
+        meter.offer(array('h', [0]*800).tobytes(), 400)
+        meter.measure(meter.take())
+        self.assertIsNone(meter.take())
+        meter.finish()
+        meter.measure(meter.take())
+        self.assertEqual(meter.latest['rms'], 0)
+        self.assertEqual(meter.latest['elapsed'], .15)
+        summary = meter.summary()
+        self.assertAlmostEqual(summary['session_rms'], .5*math.sqrt(2/3))
+        self.assertEqual(summary['session_peak'], .5)
+        self.assertEqual(summary['metered_frames'], 1200)
+        self.assertEqual(summary['dropped_frames'], 0)
+        self.assertIsNone(meter.take())
+
+    def test_meter_overrun_and_lock_contention_are_bounded_and_report_missing_frames(self):
+        meter = _WindowMeter(8000, 1, 5)
+        sizes = [len(buffer) for buffer in meter.buffers]
+        meter.offer(array('h', [1000]*10000).tobytes(), 10000)
+        self.assertEqual(meter.pending, 4)
+        self.assertEqual(meter.dropped_frames, 6800)
+        with meter.lock:
+            # Producer must return without waiting on the consumer's lock.
+            meter.offer(array('h', [1000]*80).tobytes(), 80)
+        meter.measure(meter.take())
+        # A freed slot can accept new data after overflow; final partial wraps.
+        meter.offer(array('h', [1000]*80).tobytes(), 80)
+        meter.finish()
+        while (record := meter.take()) is not None:
+            meter.measure(record)
+        self.assertEqual([len(buffer) for buffer in meter.buffers], sizes)
+        self.assertEqual(meter.metered_frames, 3280)
+        self.assertEqual(meter.dropped_frames, 6880)
+        self.assertEqual(meter.seen_frames, meter.metered_frames+meter.dropped_frames)
+        self.assertAlmostEqual(meter.summary()['session_rms'], 1000/32768)
+
+    def test_cancelled_partial_window_is_processed_after_close_before_terminal_status(self):
+        sd = FakeSoundDevice()
+        stopped = threading.Event()
+        events = []
+
+        def short_start(stream):
+            stream.started = True
+            stream.values['callback'](array('h', [-8192]*160).tobytes(), 160, None, False)
+
+        def receive(event):
+            if event['type'] == 'audio.level':
+                self.assertTrue(sd.streams[0].closed)
+            events.append(event)
+            if event.get('state') == 'ready':
+                stopped.set()
+
+        with patch.object(FakeStream, 'start', short_start):
+            AudioBackend(input_device=0, sd_module=sd).run('microphone', 5, stopped, receive)
+        terminal = events[-1]
+        self.assertEqual(terminal['state'], 'stopped')
+        self.assertEqual(terminal['session_rms'], .25)
+        self.assertEqual(terminal['session_peak'], .25)
+        self.assertEqual(terminal['metered_frames'], 160)
+        self.assertEqual(terminal['dropped_frames'], 0)
+        self.assertAlmostEqual(terminal['elapsed'], .01)
+        self.assertEqual([event['type'] for event in events],
+                         ['audio.status', 'audio.status', 'audio.level', 'audio.status'])
+        self.assertTrue(sd.streams[0].aborted and sd.streams[0].closed)
+
+    def test_final_summary_includes_a_partial_peak_even_when_live_event_is_throttled(self):
+        sd = FakeSoundDevice()
+        stopped = threading.Event()
+        events = []
+
+        def receive(event):
+            events.append(event)
+            if event['type'] == 'audio.level':
+                partial = array('h', [0]*1600)
+                partial[17] = 30000
+                sd.streams[0].values['callback'](partial.tobytes(), 1600, None, False)
+                stopped.set()
+
+        AudioBackend(input_device=0, sd_module=sd).run('microphone', 5, stopped, receive)
+        self.assertEqual(sum(event['type'] == 'audio.level' for event in events), 1)
+        terminal = events[-1]
+        self.assertEqual(terminal['state'], 'stopped')
+        self.assertEqual(terminal['session_peak'], 30000/32768)
+        self.assertAlmostEqual(terminal['session_rms'],
+                               math.sqrt((4000*12000**2+30000**2)/5600)/32768)
+        self.assertEqual(terminal['metered_frames'], 5600)
+        self.assertEqual(terminal['dropped_frames'], 0)
+        self.assertAlmostEqual(terminal['elapsed'], .35)
+
+    def test_error_stays_terminal_after_pending_window_measurement(self):
+        sd = FakeSoundDevice(fail_start='output')
+        events = []
+        AudioBackend(0, 1, sd).run('duplex', 5, threading.Event(), events.append)
+        self.assertEqual(events[-1]['state'], 'error')
+        self.assertEqual(events[-1]['metered_frames'], 4000)
+        self.assertAlmostEqual(events[-1]['session_peak'], 12000/32768)
+        self.assertFalse(any(event.get('state') == 'stopped' for event in events))
 
 
 if __name__ == '__main__':

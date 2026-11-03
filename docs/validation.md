@@ -2,7 +2,7 @@
 
 ## Offline checks
 
-The current offline suite passed 185 tests in 26.387 seconds on Windows with Python 3.12.14, Pillow 12.3.0 and Tk 8.6. Hidden preview tests cover twenty activations, local stop, Dashboard selection/detail/back/exit, audio activation and cancellation, stale-event rejection, and release of the instance lock and workers. Window resources are released on the UI thread after the shutdown worker completes. The completed result is recorded in [offline-checks.json](offline-checks.json).
+The current offline suite passed 205 tests in 27.541 seconds on Windows with Python 3.12.14, Pillow 12.3.0 and Tk 8.6. Hidden preview tests cover twenty activations, local stop, Dashboard selection/detail/back/exit, audio activation and cancellation, stale-event rejection, and release of the instance lock and workers. Window resources are released on the UI thread after the shutdown worker completes. The completed result is recorded in [offline-checks.json](offline-checks.json).
 
 Protocol checks cover partial reads, complete checksums, JPEG payloads, missing READY, missing completion, chunk retransmission, brightness acknowledgments and 1,000 idle heartbeats. A blocked-sink test submits one hundred new frames while the first is held; only the first and final images are delivered. Static images are deduplicated.
 
@@ -62,13 +62,25 @@ All seven renderers were sent through the new protocol and driver, ending with B
 
 These are device acknowledgments, not visual confirmation of each new scene or validation of the new GUI media path. Physical single-press regression, phone music coexistence, sleep/resume, all reconnect scenarios, and overnight endurance remain separate acceptance items.
 
+## Audio Lab — 2026-11-03
+
+On one Windows host with explicit MiniToo WASAPI endpoints, the operator confirmed clearly audible repeated speaker tones. Physical Right selected MIC, and Play/Pause started bounded microphone sessions. With continuous metering, speech produced visible levels; a 250 ms-window trial measured a session RMS of 0.00741 and peak of 0.09531 over 205,056 audio frames, with zero reported meter drops or native xruns.
+
+The subsequent 100 ms-window version delivered 41 and 45 live level events in two sessions. The host reported an input stream latency of 26.375 ms; this is an API estimate, not a measured acoustic delay. The operator found the computer preview responsive, while the MiniToo screen remained noticeably delayed. Individual image transfers during capture took roughly 0.9–1.2 seconds at 10 ms packet pacing. Zero meter drops does not establish the absence of losses inside the Bluetooth or OS audio path.
+
+The display pump kept the newest pending frame and replaced older pending frames. Its queue did not accumulate a replay history. Audio and display workers remain independent, but share the host and Bluetooth resources. A display-only comparison sent two frames at each pacing setting: 10 ms gave 328/454 ms, 2 ms gave 188/156 ms, and 0 ms gave 281/234 ms, with no retransmission requests. This small sample is not an adapter compatibility test; the public 10 ms default is unchanged.
+
+The operator reported audible prompts and a responding computer meter in DUPLEX. The fresh instrumented duplex trial at 2 ms pacing measured a session RMS of 0.00615 and peak of 0.20218 over 207,360 audio frames, with zero reported meter drops or native xruns. Both streams reported 26.375 ms latency. Live transfers still took 922–1172 ms; handing chunks to the socket took 62–78 ms, followed by 750–984 ms waiting for completion. That wait includes downstream Bluetooth buffering and device work; it does not isolate firmware processing time. The operator still found the device screen noticeably slow. [Audio record](hardware-audio.json).
+
+Speaker, microphone and concurrent operation worked in these short trials. They do not establish general music playback, speech recognition, overnight stability or exact one-action-per-press behavior. Ordinary launch settings remain unchanged after the pacing experiment.
+
 ## Storage and long runs
 
 Only live-display commands are sent by ordinary demos. No gallery-save or firmware command exists in the public API. Host buffers and logs are bounded. The device's internal RAM and flash management have not been fully characterized; absence of a gallery command does not prove an indefinitely safe duty cycle.
 
 ## Reproduce
 
-### Pending 0.6.1 hardware acceptance
+### Remaining hardware acceptance
 
 These checks await the operator's final session in confirmed Bluetooth Music mode. Offline checks do not establish that repeated or missing Play/Pause actions are fixed.
 
@@ -78,7 +90,8 @@ These checks await the operator's final session in confirmed Bluetooth Music mod
 - [ ] **Disconnect / reconnect:** check display recovery, input readiness, visible failure reporting and clean exit.
 - [ ] **Dashboard:** select a metric, open detail, return with Play/Pause, test desktop Back/Esc, and activate EXIT. The original device Back key has no application mapping.
 - [ ] **Link Lab:** inspect LINK, INPUT and PATTERN; confirm explicit snapshot refresh, numbered pattern changes and no ACK-triggered upload loop.
-- [ ] **Audio Lab:** verify a five-second speaker tone on the chosen output, microphone levels on the chosen input, and independent duplex operation. Check stop, page-leave cancellation and error handling for a missing direction. Endpoint enumeration is not a playback/capture test.
+- [x] **Audio Lab basic I/O:** audible repeated speaker tones, visible microphone levels and concurrent duplex operation were observed on the tested setup. Device display latency remains noticeable during capture.
+- [ ] **Audio Lab lifecycle:** check physical manual stop, page-leave cancellation and error handling for a missing direction. Offline cancellation checks do not replace hardware lifecycle acceptance.
 
 Record observed counts and failures before changing any item to passed.
 

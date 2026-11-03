@@ -137,18 +137,24 @@ class MiniToo:
                 op, body = response(self._receive(end))
                 if op == 0x8B and body[:2] == b"\x00\x01":
                     break
+            ready_at = time.monotonic()
             for raw in job.chunks:
                 self._socket.sendall(raw)
                 if self.config.chunk_delay_ms:
                     time.sleep(self.config.chunk_delay_ms / 1000)  # Only TX pacing.
-            end = time.monotonic() + self.config.timeout
+            sent_at = time.monotonic()
+            end = sent_at + self.config.timeout
             retries = {}
             while True:
                 op, body = response(self._receive(end))
                 if op == 0xBD and body[:2] == b"\x13\x01":
+                    completed_at = time.monotonic()
                     return {"bytes": job.size, "chunks": len(job.chunks),
                             "retransmissions": sum(retries.values()),
-                            "transfer_ms": round((time.monotonic()-start)*1000, 2)}
+                            "transfer_ms": round((completed_at-start)*1000, 2),
+                            "announce_ms": round((ready_at-start)*1000, 2),
+                            "send_ms": round((sent_at-ready_at)*1000, 2),
+                            "completion_ms": round((completed_at-sent_at)*1000, 2)}
                 if op == 0x8B and len(body) >= 3 and body[0] == 1:
                     index = int.from_bytes(body[1:3], "little")
                     if index >= len(job.chunks):

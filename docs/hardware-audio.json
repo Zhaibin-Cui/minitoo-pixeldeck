@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-03",
+  "version": "0.6.2",
+  "platform": "Windows",
+  "audio_host": "WASAPI",
+  "input_backend": "winrt",
+  "scope": "one paired MiniToo on one Windows host; short operator-triggered trials",
+  "operator_confirmed": {
+    "speaker_repeated_tones_audible": true,
+    "microphone_computer_preview_responsive": true,
+    "duplex_audible_prompt_and_computer_meter": true,
+    "device_display_still_noticeably_delayed": true
+  },
+  "duplex_trial": {
+    "requested_seconds": 5,
+    "measured_audio_seconds": 4.32,
+    "session_rms": 0.0061504008168856185,
+    "session_peak": 0.202178955078125,
+    "metered_frames": 207360,
+    "dropped_frames": 0,
+    "xruns": 0,
+    "level_events": 39,
+    "input_latency_ms_reported_by_host": 26.375,
+    "output_latency_ms_reported_by_host": 26.375,
+    "chunk_delay_ms": 2,
+    "live_frame_transfer_ms": [922, 1172, 938, 1000],
+    "live_frame_send_ms": [78, 78, 78, 62],
+    "live_frame_completion_ms": [765, 984, 750, 781],
+    "image_retransmission_requests": 0
+  },
+  "audio_files_saved": false,
+  "public_pacing_default_changed": false,
+  "physical_duplicate_loss_acceptance": "pending",
+  "physical_audio_lifecycle_acceptance": "pending",
+  "latency_caveat": "Host stream estimates and transport ACKs are not acoustic-to-visible latency measurements. Completion waiting includes downstream buffering and device work."
+}

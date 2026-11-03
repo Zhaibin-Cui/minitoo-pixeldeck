@@ -45,16 +45,125 @@ def list_devices(match=None, *, sd_module=None):
     return result
 
 
-def _levels(pcm):
+def _measure(pcm):
     samples = memoryview(pcm).cast('h')
     count = len(samples)
     if not count:
-        return 0.0, 0.0, []
-    rms = math.sqrt(sum(value*value for value in samples) / count) / 32768
-    peak = max(abs(value) for value in samples) / 32768
+        return 0, 0, 0, []
+    squares = sum(value*value for value in samples)
+    peak = max(abs(value) for value in samples)
     size = min(32, count)
-    waveform = [samples[index*(count-1)//max(1, size-1)] / 32768 for index in range(size)]
-    return min(1.0, rms), min(1.0, peak), waveform
+    # Signed peaks preserve short transients; this is a time-bin preview, not
+    # uniformly spaced PCM samples. All analysis happens off the audio callback.
+    waveform = [max(samples[index*count//size:(index+1)*count//size], key=abs) / 32768
+                for index in range(size)]
+    return squares, count, peak, waveform
+
+
+def _levels(pcm):
+    squares, count, peak, waveform = _measure(pcm)
+    return (math.sqrt(squares/count) / 32768 if count else 0.0), peak / 32768, waveform
+
+
+def _stream_latency_ms(stream):
+    """Read the host's actual estimate; a 'low' request is not a measurement."""
+    try:
+        seconds = stream.latency
+        if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds < 0:
+            return None
+        milliseconds = seconds*1000
+        return milliseconds if math.isfinite(milliseconds) else None
+    except Exception:
+        return None
+
+
+_METER_INTERVAL = .1
+
+
+class _WindowMeter:
+    """Four preallocated 100 ms slots; producer never waits for the consumer."""
+    SLOTS = 4
+
+    def __init__(self, rate, channels, seconds):
+        self.rate, self.channels, self.seconds = rate, channels, seconds
+        self.window_frames = max(1, int(rate*_METER_INTERVAL))
+        self.frame_bytes = channels*2
+        self.buffers = [memoryview(bytearray(self.window_frames*self.frame_bytes))
+                        for _ in range(self.SLOTS)]
+        self.ends = [0]*self.SLOTS
+        self.read = self.write = self.pending = self.filled = 0
+        self.seen_frames = self.dropped_frames = self.metered_frames = 0
+        self.squares = self.samples = self.peak = 0
+        self.latest = None
+        self.lock = threading.Lock()
+        self.wake = threading.Event()
+        self.finished = threading.Event()
+
+    def offer(self, data, frames):
+        """Native callback: bounded copies, counters, and one worker wake only."""
+        self.seen_frames += frames
+        if not self.lock.acquire(blocking=False):
+            self.dropped_frames += frames
+            return
+        completed = False
+        try:
+            source = memoryview(data).cast('B')
+            offset = 0
+            while offset < frames:
+                if self.pending == self.SLOTS:
+                    self.dropped_frames += frames-offset
+                    break
+                count = min(frames-offset, self.window_frames-self.filled)
+                start, end = self.filled*self.frame_bytes, (self.filled+count)*self.frame_bytes
+                self.buffers[self.write][start:end] = source[offset*self.frame_bytes:(offset+count)*self.frame_bytes]
+                self.filled += count
+                offset += count
+                self.ends[self.write] = self.seen_frames-frames+offset
+                if self.filled == self.window_frames:
+                    self.pending += 1
+                    self.write = (self.write+1) % self.SLOTS
+                    self.filled = 0
+                    completed = True
+        finally:
+            self.lock.release()
+        if completed:
+            self.wake.set()
+
+    def take(self):
+        """Copy one complete window (or the final partial) outside the callback."""
+        with self.lock:
+            if self.pending:
+                slot, frames = self.read, self.window_frames
+                pcm = bytes(self.buffers[slot])
+                self.read = (self.read+1) % self.SLOTS
+                self.pending -= 1
+            elif self.finished.is_set() and self.filled:
+                slot, frames = self.write, self.filled
+                pcm = bytes(self.buffers[slot][:frames*self.frame_bytes])
+                self.filled = 0
+            else:
+                return None
+            return pcm, frames, min(self.seconds, self.ends[slot]/self.rate)
+
+    def measure(self, record):
+        pcm, frames, elapsed = record
+        squares, count, peak, waveform = _measure(pcm)
+        self.squares += squares
+        self.samples += count
+        self.peak = max(self.peak, peak)
+        self.metered_frames += frames
+        self.latest = {'rms': math.sqrt(squares/count)/32768, 'peak': peak/32768,
+                       'waveform': waveform, 'elapsed': elapsed}
+
+    def summary(self):
+        return {'session_rms': math.sqrt(self.squares/self.samples)/32768 if self.samples else None,
+                'session_peak': self.peak/32768 if self.samples else None,
+                'metered_frames': self.metered_frames, 'dropped_frames': self.dropped_frames}
+
+    def finish(self):
+        # Call only after native streams have closed, so the last partial is stable.
+        self.finished.set()
+        self.wake.set()
 
 
 def _tone(rate, channels, mode, cancelled):
@@ -90,20 +199,20 @@ class AudioBackend:
         streams = []
         reporter = None
         closing = threading.Event()
-        wake = threading.Event()
-        lock = threading.Lock()
-        storage = bytearray(16384)
-        storage_view = memoryview(storage)
+        delivery_closed = threading.Event()
+        meter = None
         silence = memoryview(bytes(16384))
-        latest_size = [0]
-        latest_elapsed = [0.0]
         failure = [None]
         xruns = [0, 0]
-        started = time.monotonic()
+        latencies = {'input_latency_ms': None, 'output_latency_ms': None}
 
         def status(state, message):
+            summary = (meter.summary() if meter is not None else
+                       dict(session_rms=None, session_peak=None, metered_frames=0, dropped_frames=0))
             callback({'type': 'audio.status', 'state': state, 'mode': mode,
-                      'message': message, 'xruns': sum(xruns)})
+                      'message': message, 'xruns': sum(xruns),
+                      'elapsed': min(seconds, meter.seen_frames/meter.rate) if meter else 0.0,
+                      **summary, **latencies})
 
         def fail(message):
             failure[0] = message
@@ -111,46 +220,28 @@ class AudioBackend:
 
         def report():
             last = -math.inf
+            pending = False
             while True:
-                wake.wait()
-                wake.clear()
-                if closing.is_set():
-                    return
+                delay = max(0, last+_METER_INTERVAL-time.monotonic()) if pending else None
+                meter.wake.wait(delay)
+                meter.wake.clear()
+                finished = meter.finished.is_set()
+                while (record := meter.take()) is not None:
+                    meter.measure(record)
+                    pending = True
                 now = time.monotonic()
-                if now-last < .25:
-                    continue
-                with lock:
-                    pcm = bytes(storage_view[:latest_size[0]])
-                    elapsed = latest_elapsed[0]
-                rms, peak, waveform = _levels(pcm)
-                last = now
-                try:
-                    callback({'type': 'audio.level', 'mode': mode, 'rms': rms, 'peak': peak,
-                              'waveform': waveform, 'elapsed': elapsed, 'xruns': sum(xruns)})
-                except Exception:
-                    fail('Audio reporting callback failed')
+                if pending and now-last >= _METER_INTERVAL and not delivery_closed.is_set():
+                    last, pending = now, False
+                    try:
+                        callback({'type': 'audio.level', 'mode': mode, **meter.latest,
+                                  **meter.summary(), 'xruns': sum(xruns)})
+                    except Exception:
+                        fail('Audio reporting callback failed')
+                        delivery_closed.set()
+                if finished:
+                    # The terminal status carries any final partial measurement
+                    # suppressed by the ten-events-per-second live limit.
                     return
-
-        def sampler(rate):
-            seen, next_report = [0], [int(rate*.25)]
-
-            def offer(data, frames):
-                seen[0] += frames
-                if seen[0] < next_report[0]:
-                    return
-                next_report[0] = seen[0] + max(1, int(rate*.25))
-                if not lock.acquire(blocking=False):
-                    return
-                try:
-                    data_view = memoryview(data).cast('B')
-                    size = min(len(data_view), len(storage)) // 2 * 2
-                    storage_view[:size] = data_view[:size]
-                    latest_size[0] = size
-                    latest_elapsed[0] = min(seconds, max(0.0, time.monotonic()-started))
-                finally:
-                    lock.release()
-                wake.set()
-            return offer
 
         def finished():
             if not closing.is_set() and not stop_event.is_set():
@@ -183,27 +274,27 @@ class AudioBackend:
 
             input_settings = settings(self.input_device, 'input') if mode != 'speaker' else None
             output_settings = settings(self.output_device, 'output') if mode != 'microphone' else None
+            measured_settings = input_settings if input_settings is not None else output_settings
+            meter = _WindowMeter(measured_settings['samplerate'], measured_settings['channels'], seconds)
             if input_settings is not None:
-                offer_input = sampler(input_settings['samplerate'])
-
                 def input_callback(data, frames, timing, flags):
                     if flags:
                         xruns[0] += 1
                     try:
                         if stop_event.is_set():
                             raise sd.CallbackAbort
-                        offer_input(data, frames)
+                        meter.offer(data, frames)
                     except sd.CallbackAbort:
                         raise
                     except Exception:
                         fail('Audio input callback failed')
                         raise sd.CallbackAbort
-                streams.append(sd.RawInputStream(**input_settings, blocksize=0,
+                streams.append(sd.RawInputStream(**input_settings, blocksize=0, latency='low',
                     callback=input_callback, finished_callback=finished))
+                latencies['input_latency_ms'] = _stream_latency_ms(streams[-1])
             if output_settings is not None:
                 tone = memoryview(_tone(output_settings['samplerate'], output_settings['channels'], mode, stop_event))
                 position = [0]
-                offer_output = sampler(output_settings['samplerate'])
 
                 def output_callback(data, frames, timing, flags):
                     if flags:
@@ -224,14 +315,15 @@ class AudioBackend:
                             offset += size
                             position[0] += size
                         if mode == 'speaker':
-                            offer_output(output, frames)
+                            meter.offer(output, frames)
                     except sd.CallbackAbort:
                         raise
                     except Exception:
                         fail('Audio output callback failed')
                         raise sd.CallbackAbort
-                streams.append(sd.RawOutputStream(**output_settings, blocksize=0,
+                streams.append(sd.RawOutputStream(**output_settings, blocksize=0, latency='low',
                     callback=output_callback, finished_callback=finished))
+                latencies['output_latency_ms'] = _stream_latency_ms(streams[-1])
             if stop_event.is_set():
                 return
             for stream in streams:
@@ -240,7 +332,6 @@ class AudioBackend:
                 stream.start()
             if stop_event.is_set():
                 return
-            started = time.monotonic()
             status('ready', 'Audio active; no recording is saved')
             reporter = threading.Thread(target=report, name='pixeldeck-audio-levels', daemon=True)
             reporter.start()
@@ -259,11 +350,15 @@ class AudioBackend:
                         stream.close()
                     except Exception:
                         failure[0] = failure[0] or 'Audio stream close failed'
-            wake.set()
+            if meter is not None:
+                meter.finish()
             if reporter is not None:
                 reporter.join(timeout=1)
                 if reporter.is_alive():
                     failure[0] = failure[0] or 'Audio reporting callback did not return'
+            elif meter is not None:
+                report()
+            delivery_closed.set()
             if failure[0] is not None:
                 status('error', failure[0])
             else:
