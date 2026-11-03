@@ -12,7 +12,7 @@ The README uses the device's pixel palette and control layout. It starts with ar
 - Deeper recipes use collapsible sections so the gallery remains easy to browse.
 - The source links next to the gallery connect every visual to reproducible code.
 
-The control strip, architecture graphic, illustrations and previews are generated locally by `tools/build_gallery.py` from the project's drawing code and renderers. Monitor previews use synthetic data.
+The control strip, architecture graphic, illustrations and previews are generated locally by `tools/build_gallery.py` from the project's drawing code and renderers. Monitor and audio previews use synthetic data; hardware measurements stay in the validation record.
 
 ## References
 

@@ -236,7 +236,25 @@ class AudioLab(Demo):
             c.d.rectangle((38, y, 38+round(fraction*72), y+6), fill=color)
         c.text(116, y, _dbfs_label(level), color)
 
+    def _live_meter(self):
+        """Keep capture frames small; retain detailed measurements for SESSION."""
+        c = Canvas('#000000')
+        accent = '#80edc0'
+        c.text(8, 10, 'MIC LIVE' if self.mode == 'microphone' else 'DUPLEX LIVE', accent)
+        level = _dbfs(self.rms)
+        label = '-INF' if level == -math.inf else str(round(level))
+        c.text(8, 34, label, '#ffffff', size=3)
+        c.text(111, 48, 'DBFS', accent)
+        c.d.rectangle((8, 70, 151, 91), fill='#202020')
+        width = round(144*max(0, min(1, (level-self.DBFS_FLOOR)/-self.DBFS_FLOOR)))
+        if width:
+            c.d.rectangle((8, 70, 7+width, 91), fill=accent)
+        c.text(8, 110, 'ACT STOP', accent)
+        return c.image
+
     def render(self, now):
+        if self.state == 'ready' and self.mode in ('microphone', 'duplex') and self.rms is not None:
+            return self._live_meter()
         c = Canvas()
         color = self.COLORS[self.selected]
         c.header('AUDIO LAB', f'{self.selected+1}/3', color)

@@ -1,0 +1,212 @@
+{
+  "version": "0.7.0",
+  "date": "2026-11-03",
+  "scope": "one Windows host and paired MiniToo",
+  "display_data": "fixed synthetic full Audio Lab frame",
+  "capture": "real MiniToo WASAPI microphone",
+  "input_session": "WinRT media receiver active",
+  "chunk_delay_ms": 2,
+  "jpeg_quality": 72,
+  "zstd_level": 9,
+  "trial_order": "forward candidate order, then reverse",
+  "public_defaults_changed": false,
+  "frames": [
+    {
+      "bytes": 7589,
+      "chunks": 30,
+      "codec": "jpeg",
+      "retransmissions": 0,
+      "transfer_ms": 906.0,
+      "announce_ms": 47.0,
+      "send_ms": 78.0,
+      "completion_ms": 781.0,
+      "run": 0,
+      "view": "full",
+      "period_ms": 1000,
+      "audio_active_at_ack": true
+    },
+    {
+      "bytes": 1319,
+      "chunks": 6,
+      "codec": "zstd",
+      "retransmissions": 0,
+      "transfer_ms": 219.0,
+      "announce_ms": 125.0,
+      "send_ms": 16.0,
+      "completion_ms": 78.0,
+      "run": 0,
+      "view": "full",
+      "period_ms": 1000,
+      "audio_active_at_ack": true
+    },
+    {
+      "bytes": 1319,
+      "chunks": 6,
+      "codec": "zstd",
+      "retransmissions": 0,
+      "transfer_ms": 343.0,
+      "announce_ms": 109.0,
+      "send_ms": 16.0,
+      "completion_ms": 218.0,
+      "run": 0,
+      "view": "full",
+      "period_ms": 50,
+      "audio_active_at_ack": true
+    },
+    {
+      "bytes": 1319,
+      "chunks": 6,
+      "codec": "zstd",
+      "retransmissions": 0,
+      "transfer_ms": 328.0,
+      "announce_ms": 141.0,
+      "send_ms": 15.0,
+      "completion_ms": 172.0,
+      "run": 1,
+      "view": "full",
+      "period_ms": 50,
+      "audio_active_at_ack": true
+    },
+    {
+      "bytes": 1319,
+      "chunks": 6,
+      "codec": "zstd",
+      "retransmissions": 0,
+      "transfer_ms": 235.0,
+      "announce_ms": 94.0,
+      "send_ms": 31.0,
+      "completion_ms": 110.0,
+      "run": 1,
+      "view": "full",
+      "period_ms": 1000,
+      "audio_active_at_ack": true
+    },
+    {
+      "bytes": 7589,
+      "chunks": 30,
+      "codec": "jpeg",
+      "retransmissions": 0,
+      "transfer_ms": 922.0,
+      "announce_ms": 47.0,
+      "send_ms": 78.0,
+      "completion_ms": 797.0,
+      "run": 1,
+      "view": "full",
+      "period_ms": 1000,
+      "audio_active_at_ack": true
+    }
+  ],
+  "metered_audio_frames": [
+    163584,
+    151488
+  ],
+  "meter_drops": [
+    0,
+    0
+  ],
+  "native_xruns": [
+    0,
+    0
+  ],
+  "com_startup_probe": {
+    "without_worker_com": "-9999 before audio frames",
+    "with_worker_mta": "capture ready; 63360 frames, zero meter drops/xruns"
+  },
+  "operator_full_view": "pixels normal; still feels slow",
+  "operator_live_full_view_median_transfer_ms": [
+    328,
+    359,
+    329,
+    328,
+    328
+  ],
+  "operator_live_full_view_median_frame_age_ms": [
+    390,
+    406,
+    375,
+    437,
+    359
+  ],
+  "compact_view_operator_acceptance": "not established",
+  "caveat": "Transport ACK and submitted-frame age are not acoustic-to-visible measurements.",
+  "audio_files_saved": false,
+  "compact_mic_runs": [
+    {
+      "mode": "microphone",
+      "state": "stopped",
+      "compact_frame_acks": 19,
+      "transfer_ms": {
+        "min": 94.0,
+        "median": 203.0,
+        "max": 313.0
+      },
+      "frame_age_ms": {
+        "min": 141.0,
+        "median": 219.0,
+        "max": 484.0
+      },
+      "bytes": {
+        "min": 363,
+        "median": 450,
+        "max": 544
+      },
+      "metered_frames": 206880,
+      "dropped_frames": 1056,
+      "xruns": 0,
+      "level_events": 82,
+      "image_retransmissions": 0
+    },
+    {
+      "mode": "microphone",
+      "state": "stopped",
+      "compact_frame_acks": 19,
+      "transfer_ms": {
+        "min": 140.0,
+        "median": 218.0,
+        "max": 282.0
+      },
+      "frame_age_ms": {
+        "min": 187.0,
+        "median": 266.0,
+        "max": 406.0
+      },
+      "bytes": {
+        "min": 408,
+        "median": 450,
+        "max": 577
+      },
+      "metered_frames": 239040,
+      "dropped_frames": 0,
+      "xruns": 0,
+      "level_events": 96,
+      "image_retransmissions": 0
+    },
+    {
+      "mode": "microphone",
+      "state": "stopped",
+      "compact_frame_acks": 18,
+      "transfer_ms": {
+        "min": 125.0,
+        "median": 234.5,
+        "max": 297.0
+      },
+      "frame_age_ms": {
+        "min": 171.0,
+        "median": 289.5,
+        "max": 375.0
+      },
+      "bytes": {
+        "min": 408,
+        "median": 446.0,
+        "max": 555
+      },
+      "metered_frames": 201024,
+      "dropped_frames": 0,
+      "xruns": 0,
+      "level_events": 82,
+      "image_retransmissions": 0
+    }
+  ],
+  "meter_window_ms": 50,
+  "meter_max_reports_per_second": 20
+}

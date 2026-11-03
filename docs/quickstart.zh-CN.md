@@ -14,7 +14,7 @@ Windows 推荐使用 Python 3.11+，在仓库目录建立独立环境：
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio]"
+.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio,display]"
 .\.venv\Scripts\pixeldeck.exe doctor
 powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Preview -Demo buddy
 ```
@@ -52,9 +52,9 @@ pixeldeck run dashboard --send --media
 
 默认 `--input-backend auto` 会在 Windows、Python 3.11+ 和匹配的 WinRT 依赖可用时选择 Python WinRT，否则选择旧 C# 后端。也可显式指定 `--input-backend winrt` 或 `--input-backend legacy`。`build-input` 会检查 WinRT 依赖，或编译所选的 C# 后端。运行失败会报告并有限重试，不会静默切换后端。
 
-输入会话使用指定设备上的静音音频。媒体回调映射成“上一个、下一个、操作”。播放／暂停的首个回调立即生效，随后 250 毫秒内的同类回调合并；这不会增加首个动作的等待，但刻意快速连按也可能被合并。新的后端与处理方式仍需真机验收，不能据此保证一次按键一定对应一次动作。
+输入会话使用指定设备上的静音音频。媒体回调映射成“上一个、下一个、操作”。播放／暂停的首个回调立即生效，随后 250 毫秒内的同类回调合并；这不会增加首个动作的等待，但刻意快速连按也可能被合并。已观测到这些媒体回调，但一次物理按键与一次应用动作的一一对应仍未完全验证。
 
-测试前先确认设备处于 **Bluetooth Music 播放页面**，并检查左右回调。摇杆上、下、中央按下和原机返回键没有应用映射。手机放歌与电脑显示并行需要单独验证。
+媒体按键依赖设备的 **Bluetooth Music 播放页面**；原机菜单会自行处理导航。摇杆上、下、中央按下和原机返回键没有应用映射。手机放歌与电脑显示并行尚未验证。
 
 | 启动方式 | 画面 | 输入 |
 |---|---|---|
@@ -70,7 +70,7 @@ Windows 也可使用仓库内的启动脚本：
 powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Interactive -Demo dashboard
 ```
 
-`-Mode Preview` 只预览，`-Mode Display` 只增加传图，`-Mode Interactive` 同时接入媒体按键。`-InputBackend Auto|WinRT|Legacy` 可选择输入后端。默认是 Preview / dashboard；脚本不会自动安装依赖。加 `-Check` 只检查脱敏后的本地配置和依赖，不连接设备。其他参数见 [启动器说明](usage.md#windows-launcher)。
+`-Mode Preview` 只预览，`-Mode Display` 只增加传图，`-Mode Interactive` 同时接入媒体按键。`-InputBackend Auto|WinRT|Legacy` 可选择输入后端。`-Codec jpeg|zstd|auto` 和 `-ChunkDelayMs N`（0–100）只覆盖本次运行的编码和分块间隔；省略时沿用配置，默认 JPEG / 10 毫秒。默认是 Preview / dashboard；脚本不会自动安装依赖。加 `-Check` 只检查脱敏后的本地配置和依赖，不连接设备。其他参数见 [启动器说明](usage.md#windows-launcher)。
 
 蓝牙兼容性需要看 Classic RFCOMM、Windows 媒体配置和驱动是否可用，不能仅凭“蓝牙 4.x / 5.x”判断。当前真机证据只覆盖记录中的电脑与设备组合；[兼容性说明及微软资料](usage.md#bluetooth-compatibility) 列出了具体要求。`pixeldeck doctor` 不会连接设备，因此不能代替实际传图和按键验证。
 
@@ -119,6 +119,8 @@ python examples/pipeline_lab.py
 
 第一个默认只生成静态帧、多帧 clip 和亮度命令的发送计划；后两个分别模拟驱动应答／重传／超时，以及最新帧替换／去重／重连。只有 `device_lab.py` 显式加 `--send` 才会连接设备，例如 `--operation still --send`。clip 和亮度的物理效果仍需验证；亮度不会自动恢复，参数见 [使用说明](usage.md#device-write-lab)。
 
+默认显示编码仍为 JPEG。完整安装中的 `display` 依赖可启用无损 Zstandard：`pixeldeck run dashboard --send --codec auto` 会在发送前选择较小且不超过 16,000 字节的可用编码，不会探测设备是否支持它，也不会在传输失败后切换格式重发。`python examples/device_lab.py --operation still --codec auto` 可以离线查看编码、大小和分块数。多帧 `clip` 保持 JPEG；更多选项见 [编码说明](usage.md#display-encoding)。
+
 ## Audio Lab
 
 ```shell
@@ -128,9 +130,11 @@ pixeldeck run audio --audio --audio-input INPUT_ID --audio-output OUTPUT_ID
 
 把 `INPUT_ID`、`OUTPUT_ID` 换成 `audio-devices` 列出的整数编号；不加 `--match` 可查看全部设备。SPEAKER 只需要输出，MIC 只需要输入，DUPLEX 需要两者。默认 `run audio` 不启用音频；即使加了 `--audio`，也要按操作键才会开始五秒测试。
 
-MIC 显示电平和波形；DUPLEX 同时播放独立测试音、观察麦克风，不把麦克风声音回放到扬声器。运行中操作／电脑 Back 可停止，离开页面也会停止。缺少所选模式需要的输入或输出时，会显示错误，不会偷偷换设备。加 `--send` 可把页面传到 MiniToo。
+MIC 和 DUPLEX 运行时显示精简的瞬时 RMS 数值和大音量条，数值按整数 dBFS 显示，音量条范围为 -60..0 dBFS；没有峰值保持或输入增益。实际静音显示 -INF，缺失数据保留等待状态。DUPLEX 同时播放独立测试音，不把麦克风回放到扬声器。SPEAKER 保留完整波形和峰值视图。
 
-程序不保存音频文件；退出时 `latest.png` 只保留最后的显示画面，可能包含电平图。文档波形是合成数据，列出设备也不代表播放、采集或双工效果已验证，这些都待最终真机验收。
+计量使用四个预分配的 50 毫秒缓冲槽，最多每秒报告 20 次；这不代表设备能每秒显示 20 帧。停止后的 SESSION 保留整段 RMS、峰值、最近 20 个报告窗口的峰值，以及已计量／丢弃帧数。运行中操作／电脑 Back 可停止，离开页面也会停止。缺少所选模式需要的输入或输出时会显示错误。加 `--send` 可把页面传到 MiniToo。
+
+程序不保存音频文件；退出时 `latest.png` 只保留最后的显示画面。短时间实测已确认扬声器、麦克风和双工在记录中的 Windows 设备组合上工作，但设备画面仍有可感延迟，不能视为已解决。文档动画使用合成数据；具体测量和未验证范围见 [验证记录](validation.md)。
 
 向 Build Beacon 推送一行 JSON 即可更新状态：
 

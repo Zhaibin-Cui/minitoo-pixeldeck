@@ -2,7 +2,7 @@
 
 ## Offline checks
 
-The current offline suite passed 205 tests in 27.541 seconds on Windows with Python 3.12.14, Pillow 12.3.0 and Tk 8.6. Hidden preview tests cover twenty activations, local stop, Dashboard selection/detail/back/exit, audio activation and cancellation, stale-event rejection, and release of the instance lock and workers. Window resources are released on the UI thread after the shutdown worker completes. The completed result is recorded in [offline-checks.json](offline-checks.json).
+The current offline suite passed 247 tests in 19.833 seconds on Windows with Python 3.12.14, Pillow 12.3.0 and Tk 8.6. Hidden preview tests cover twenty activations, local stop, Dashboard selection/detail/back/exit, audio activation and cancellation, stale-event rejection, and release of the instance lock and workers. Window resources are released on the UI thread after the shutdown worker completes. The completed result is recorded in [offline-checks.json](offline-checks.json).
 
 Protocol checks cover partial reads, complete checksums, JPEG payloads, missing READY, missing completion, chunk retransmission, brightness acknowledgments and 1,000 idle heartbeats. A blocked-sink test submits one hundred new frames while the first is held; only the first and final images are delivered. Static images are deduplicated.
 
@@ -61,6 +61,20 @@ The operator confirmed counting, navigation and focus controls behaved normally.
 All seven renderers were sent through the new protocol and driver, ending with Bit Buddy. The device acknowledged 24 frames in 9.36 seconds: median transfer 390.5 ms, maximum 437 ms, zero retransmission requests. The connection was closed afterwards. [Machine-readable summary](hardware-smoke.json).
 
 These are device acknowledgments, not visual confirmation of each new scene or validation of the new GUI media path. Physical single-press regression, phone music coexistence, sleep/resume, all reconnect scenarios, and overnight endurance remain separate acceptance items.
+
+## Lossless display — 2026-11-03
+
+With a MiniToo WASAPI microphone capture active, a fixed full Audio Lab source image was transmitted twice per codec, reversing the candidate order in the second run. Both used 2 ms packet pacing, the same RFCOMM connection and normal completion acknowledgments. JPEG quality 72 produced 7,589 bytes and took 906/922 ms; lossless RGB/Zstandard level 9 produced 1,319 bytes and took 219/235 ms. No image retransmission requests occurred. The two capture runs metered 163,584 and 151,488 audio frames with zero reported software-meter drops or native xruns. The display data in this controlled comparison was synthetic; capture supplied the actual audio load.
+
+The same Zstandard frame with a 50 ms playback period took 343/328 ms. There is no evidence in this small sample that shortening that field improves single-frame uploads, so the still-frame period remains 1,000 ms. JPEG and 10 ms packet pacing remain public defaults. The new `auto` option is a local payload choice, not a device-capability negotiation or a transport retry policy. [Machine-readable comparison](hardware-display-codecs.json).
+
+During setup, capture startup reproducibly failed with PortAudio `-9999`. A worker without a COM apartment failed before receiving audio; a fresh worker explicitly initialized as MTA then captured 63,360 frames in a bounded two-second job with zero reported drops/xruns. The fix initializes the calling audio thread and balances only the COM references it owns after all stream cleanup. This test supports the initialization fix on this host; it does not classify every future audio-start failure as the same cause.
+
+The operator confirmed normal pixels in the microphone-only test but still found the full meter view slow, particularly when speech began. Across five short sessions its median transfer time was 328–359 ms and median submitted-frame age 359–437 ms.
+
+The compact live RMS view and 50 ms measurement windows were then used in three microphone sessions. Frames were 363–577 bytes; per-session median transfer times were 203, 218 and 234.5 ms, with median submitted-frame ages of 219, 266 and 289.5 ms. No image retransmissions or native xruns were reported. The first session's meter dropped 1,056 of 207,936 delivered audio frames; the other two reported no meter drops. The full SESSION results remain available after capture.
+
+The compact view reduced measured transfer time; acceptable sound-to-screen synchronization has not been established. `frame_age_ms` starts when a rendered frame is submitted to the writer and includes queueing, encoding and transport; it is not an acoustic-to-visible latency measurement. All live test sessions were closed after the investigation.
 
 ## Audio Lab — 2026-11-03
 

@@ -2,12 +2,18 @@
 import copy
 import math
 import unittest
+from unittest.mock import patch
 
 from PIL import ImageColor
 
 from pixeldeck.demos.audio_lab import AudioLab, _dbfs, _dbfs_label
-from pixeldeck.pixels import LINE, PINK
-from pixeldeck.protocol import MAX_BLOB, jpeg_clip
+from pixeldeck.pixels import Canvas, CYAN
+from pixeldeck.protocol import MAX_BLOB, jpeg_clip, zstd_clip
+
+try:
+    import zstandard
+except (ImportError, OSError):
+    zstandard = None
 
 
 class AudioLabTests(unittest.TestCase):
@@ -113,23 +119,23 @@ class AudioLabTests(unittest.TestCase):
     def test_quiet_meter_is_visible_and_values_below_floor_are_not_boosted(self):
         lab = AudioLab()
         lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
-        for amplitude, expected_color in ((.01, PINK), (.001, LINE), (.0001, LINE),
-                                           (0, LINE), (None, LINE), (1, PINK)):
+        for amplitude, expected_color in ((.01, '#80edc0'), (.001, '#202020'),
+                                           (.0001, '#202020'), (0, '#202020'), (1, '#80edc0')):
             with self.subTest(amplitude=amplitude):
                 lab.handle({'type': 'audio.level', 'rms': amplitude, 'peak': amplitude}, 0)
                 image = lab.render(0)
-                self.assertEqual(image.getpixel((60, 97)), ImageColor.getrgb(expected_color))
+                self.assertEqual(image.getpixel((32, 80)), ImageColor.getrgb(expected_color))
 
     def test_scope_display_gain_makes_quiet_wave_visible_without_changing_samples(self):
         lab = AudioLab()
         samples = [-.01, .01]*16
-        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'speaker'}, 0)
         lab.handle({'type': 'audio.level', 'rms': .01, 'peak': .01,
                     'waveform': samples, 'elapsed': 1}, 0)
         before = (lab.rms, lab.peak, lab.waveform)
         image = lab.render(0)
         rows = {y for x in range(10, 108) for y in range(60, 83)
-                if image.getpixel((x, y)) == ImageColor.getrgb(PINK)}
+                if image.getpixel((x, y)) == ImageColor.getrgb(CYAN)}
         self.assertLess(min(rows), 71)
         self.assertGreater(max(rows), 71)
         self.assertEqual((lab.rms, lab.peak, lab.waveform), before)
@@ -137,11 +143,11 @@ class AudioLabTests(unittest.TestCase):
 
     def test_scope_clamps_display_only_and_extreme_finite_labels_fit(self):
         lab = AudioLab()
-        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'speaker'}, 0)
         lab.handle({'type': 'audio.level', 'rms': 1, 'peak': 1, 'waveform': [-1, 1]}, 0)
         image = lab.render(0)
-        self.assertEqual(image.getpixel((10, 81)), ImageColor.getrgb(PINK))
-        self.assertEqual(image.getpixel((107, 61)), ImageColor.getrgb(PINK))
+        self.assertEqual(image.getpixel((10, 81)), ImageColor.getrgb(CYAN))
+        self.assertEqual(image.getpixel((107, 61)), ImageColor.getrgb(CYAN))
         self.assertEqual(lab.waveform, (-1., 1.))
         self.assertLessEqual(len(_dbfs_label(_dbfs(math.nextafter(0, 1)))), 6)
 
@@ -226,6 +232,66 @@ class AudioLabTests(unittest.TestCase):
         self.assertEqual(lab._state_label()[0], 'UNAVAILABLE')
         self.assertEqual(lab.message, 'Input stream failed')
         self.assertFalse(lab.active)
+
+    def test_compact_meter_uses_instantaneous_rms_and_does_not_mutate_history(self):
+        lab = AudioLab()
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'microphone'}, 0)
+        lab.handle({'type': 'audio.level', 'elapsed': 1, 'rms': .5, 'peak': .9}, 0)
+        lab.handle({'type': 'audio.level', 'elapsed': 1.1, 'rms': .001, 'peak': .002,
+                    'waveform': [-.002, .002], 'session_rms': .2, 'session_peak': .9,
+                    'metered_frames': 52800, 'dropped_frames': 0}, 0)
+        self.assertEqual(lab.held_peak, .9)
+        before = copy.deepcopy(vars(lab))
+        image = lab.render(0)
+        self.assertEqual(image.getpixel((32, 80)), ImageColor.getrgb('#202020'))
+        self.assertEqual(image.tobytes(), lab.render(10000).tobytes())
+        self.assertEqual(vars(lab), before)
+
+    def test_compact_silence_is_distinct_from_unknown_and_values_are_truthful(self):
+        lab = AudioLab()
+        lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': 'duplex'}, 0)
+        original = Canvas.text
+        for rms, expected in ((None, '--'), (0, '-INF'), (.012, '-38'), (.0001, '-80'), (1, '0')):
+            with self.subTest(rms=rms):
+                lab.handle({'type': 'audio.level', 'rms': rms, 'peak': rms}, 0)
+                with patch.object(Canvas, 'text', autospec=True, side_effect=original) as text:
+                    image = lab.render(0)
+                labels = [call.args[3] for call in text.call_args_list]
+                self.assertIn(expected, labels)
+                self.assertEqual((image.mode, image.size), ('RGB', (160, 128)))
+                if rms is None:
+                    self.assertNotIn('-INF', labels)
+                    self.assertIn('WAITING FOR LEVELS', labels)
+                else:
+                    self.assertIn('DUPLEX LIVE', labels)
+                    self.assertIn('ACT STOP', labels)
+                    self.assertNotIn('PEAK HOLD 1S  ACT STOP', labels)
+
+    def test_compact_render_keeps_other_states_and_speaker_on_full_view(self):
+        lab = AudioLab()
+        for mode in lab.MODES:
+            for state in lab.STATES:
+                if mode in ('microphone', 'duplex') and state == 'ready':
+                    continue
+                with self.subTest(mode=mode, state=state):
+                    lab.handle({'type': 'audio.status', 'mode': mode, 'state': state}, 0)
+                    lab.handle({'type': 'audio.level', 'rms': .1, 'peak': .5}, 0)
+                    with patch.object(lab, '_live_meter', side_effect=AssertionError('Full view required')):
+                        self.assertEqual(lab.render(0).size, (160, 128))
+
+    @unittest.skipIf(zstandard is None, 'Optional zstandard package is not installed')
+    def test_compact_live_payload_stays_below_one_kib_without_losing_rgb(self):
+        lab = AudioLab()
+        for mode in ('microphone', 'duplex'):
+            lab.handle({'type': 'audio.status', 'state': 'ready', 'mode': mode}, 0)
+            for rms in (0, math.nextafter(0, 1), .0001, .001, .012, .2, 1):
+                with self.subTest(mode=mode, rms=rms):
+                    lab.handle({'type': 'audio.level', 'rms': rms, 'peak': rms}, 0)
+                    image = lab.render(0)
+                    blob = zstd_clip([image])
+                    self.assertLess(len(blob), 1024)
+                    decoded = zstandard.ZstdDecompressor().decompress(blob[10:])
+                    self.assertEqual(decoded, image.tobytes())
 
 
 if __name__ == '__main__':

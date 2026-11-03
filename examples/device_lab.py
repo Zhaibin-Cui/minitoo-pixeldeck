@@ -10,10 +10,12 @@ Clip playback and brightness are experimental. The original brightness cannot be
 read, so this example does not invent an automatic restoration value.
 """
 import argparse
+from dataclasses import replace
 import json
 
 from pixeldeck import DeviceConfig, MiniToo
 from pixeldeck.config import home
+from pixeldeck.encoding import encode_frame
 from pixeldeck.instance import InstanceLock
 from pixeldeck.pixels import Canvas, CYAN, MINT, LINE
 from pixeldeck.protocol import MAX_BLOB, brightness_packet, jpeg_clip, upload
@@ -32,7 +34,7 @@ def pictures():
     return frames
 
 
-def plan(operations, frames, level, period, quality=72):
+def plan(operations, frames, level, period, quality=72, codec='jpeg'):
     result = []
     for operation in operations:
         if operation == 'brightness':
@@ -42,10 +44,12 @@ def plan(operations, frames, level, period, quality=72):
         else:
             selected = frames[:1] if operation == 'still' else frames
             frame_period = 1000 if operation == 'still' else period
-            job = upload(jpeg_clip(selected, frame_period, quality))
+            selected_codec, blob = (encode_frame(selected[0], quality, codec) if operation == 'still'
+                                    else ('jpeg', jpeg_clip(selected, frame_period, quality)))
+            job = upload(blob)
             result.append({'operation': operation, 'experimental': operation == 'clip',
                            'frames': len(selected), 'period_ms': frame_period,
-                           'bytes': job.size, 'chunks': len(job.chunks),
+                           'codec': selected_codec, 'bytes': job.size, 'chunks': len(job.chunks),
                            'within_upload_budget': job.size <= MAX_BLOB})
     return result
 
@@ -56,6 +60,7 @@ def main(argv=None):
     parser.add_argument('--level', type=int, default=50)
     parser.add_argument('--period', type=int, default=250)
     parser.add_argument('--config')
+    parser.add_argument('--codec', choices=('jpeg', 'zstd', 'auto'), help='Still-frame encoding; clips remain JPEG')
     parser.add_argument('--send', action='store_true')
     args = parser.parse_args(argv)
     if not 0 <= args.level <= 100:
@@ -67,13 +72,15 @@ def main(argv=None):
     if not args.send:
         print(json.dumps({'mode': 'dry_run', 'hardware_accessed': False, 'sent': False,
                           'upload_budget_bytes': MAX_BLOB,
-                          'operations': plan(operations, frames, args.level, args.period)}))
+                          'operations': plan(operations, frames, args.level, args.period, codec=args.codec or 'jpeg')}))
         return 0
     config = DeviceConfig.load(args.config)
+    if args.codec is not None:
+        config = replace(config, codec=args.codec)
     if not config.address:
         parser.error('Configure a paired device or supply --config before --send')
     # Encoding and bounds checks complete before the device is opened.
-    prepared = plan(operations, frames, args.level, args.period, config.quality)
+    prepared = plan(operations, frames, args.level, args.period, config.quality, config.codec)
     runtime = home()
     runtime.mkdir(parents=True, exist_ok=True)
     lock = InstanceLock(runtime / 'instance.lock')

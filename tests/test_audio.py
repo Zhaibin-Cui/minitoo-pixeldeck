@@ -22,7 +22,7 @@ class FakeStream:
         self.started = True
         if self.owner.fail_start == self.direction:
             raise RuntimeError('Simulated stream start failure')
-        frames = int(self.values['samplerate']*.25)
+        frames = int(self.values['samplerate']*.05)
         callback = self.values['callback']
         self.owner.native_threads.append(threading.get_ident())
         if self.direction == 'input':
@@ -291,37 +291,39 @@ class AudioTests(unittest.TestCase):
 
     def test_fragmented_callbacks_capture_a_transient_before_the_old_sample_boundary(self):
         meter = _WindowMeter(8000, 1, 5)
-        # Ten ten-millisecond callbacks: only an early callback has a transient.
-        # A full measurement is available at 100 ms, without waiting for 250 ms.
-        for block in range(10):
+        # Five ten-millisecond callbacks: only an early callback has a transient.
+        # The window is incomplete at 40 ms and ready at 50 ms.
+        for block in range(5):
             data = array('h', [0]*80)
             if block == 2:
                 data[37] = -24576
             meter.offer(data.tobytes(), 80)
+            if block < 4:
+                self.assertIsNone(meter.take())
         record = meter.take()
-        self.assertEqual(record[1], 800)
+        self.assertEqual(record[1], 400)
         meter.measure(record)
-        self.assertAlmostEqual(meter.latest['rms'], .75/math.sqrt(800))
+        self.assertAlmostEqual(meter.latest['rms'], .75/math.sqrt(400))
         self.assertEqual(meter.latest['peak'], .75)
         self.assertIn(-.75, meter.latest['waveform'])
         self.assertLessEqual(len(meter.latest['waveform']), 32)
-        self.assertEqual(meter.summary()['metered_frames'], 800)
+        self.assertEqual(meter.summary()['metered_frames'], 400)
         self.assertEqual(meter.summary()['dropped_frames'], 0)
 
     def test_session_rms_weights_partial_window_samples_and_counts_frames_not_channels(self):
         meter = _WindowMeter(8000, 2, 5)
-        meter.offer(array('h', [16384]*1600).tobytes(), 800)
-        meter.offer(array('h', [0]*800).tobytes(), 400)
+        meter.offer(array('h', [16384]*800).tobytes(), 400)
+        meter.offer(array('h', [0]*400).tobytes(), 200)
         meter.measure(meter.take())
         self.assertIsNone(meter.take())
         meter.finish()
         meter.measure(meter.take())
         self.assertEqual(meter.latest['rms'], 0)
-        self.assertEqual(meter.latest['elapsed'], .15)
+        self.assertEqual(meter.latest['elapsed'], .075)
         summary = meter.summary()
         self.assertAlmostEqual(summary['session_rms'], .5*math.sqrt(2/3))
         self.assertEqual(summary['session_peak'], .5)
-        self.assertEqual(summary['metered_frames'], 1200)
+        self.assertEqual(summary['metered_frames'], 600)
         self.assertEqual(summary['dropped_frames'], 0)
         self.assertIsNone(meter.take())
 
@@ -330,7 +332,7 @@ class AudioTests(unittest.TestCase):
         sizes = [len(buffer) for buffer in meter.buffers]
         meter.offer(array('h', [1000]*10000).tobytes(), 10000)
         self.assertEqual(meter.pending, 4)
-        self.assertEqual(meter.dropped_frames, 6800)
+        self.assertEqual(meter.dropped_frames, 8400)
         with meter.lock:
             # Producer must return without waiting on the consumer's lock.
             meter.offer(array('h', [1000]*80).tobytes(), 80)
@@ -341,8 +343,8 @@ class AudioTests(unittest.TestCase):
         while (record := meter.take()) is not None:
             meter.measure(record)
         self.assertEqual([len(buffer) for buffer in meter.buffers], sizes)
-        self.assertEqual(meter.metered_frames, 3280)
-        self.assertEqual(meter.dropped_frames, 6880)
+        self.assertEqual(meter.metered_frames, 1680)
+        self.assertEqual(meter.dropped_frames, 8480)
         self.assertEqual(meter.seen_frames, meter.metered_frames+meter.dropped_frames)
         self.assertAlmostEqual(meter.summary()['session_rms'], 1000/32768)
 
@@ -383,9 +385,9 @@ class AudioTests(unittest.TestCase):
         def receive(event):
             events.append(event)
             if event['type'] == 'audio.level':
-                partial = array('h', [0]*1600)
+                partial = array('h', [0]*160)
                 partial[17] = 30000
-                sd.streams[0].values['callback'](partial.tobytes(), 1600, None, False)
+                sd.streams[0].values['callback'](partial.tobytes(), 160, None, False)
                 stopped.set()
 
         AudioBackend(input_device=0, sd_module=sd).run('microphone', 5, stopped, receive)
@@ -394,17 +396,17 @@ class AudioTests(unittest.TestCase):
         self.assertEqual(terminal['state'], 'stopped')
         self.assertEqual(terminal['session_peak'], 30000/32768)
         self.assertAlmostEqual(terminal['session_rms'],
-                               math.sqrt((4000*12000**2+30000**2)/5600)/32768)
-        self.assertEqual(terminal['metered_frames'], 5600)
+                               math.sqrt((800*12000**2+30000**2)/960)/32768)
+        self.assertEqual(terminal['metered_frames'], 960)
         self.assertEqual(terminal['dropped_frames'], 0)
-        self.assertAlmostEqual(terminal['elapsed'], .35)
+        self.assertAlmostEqual(terminal['elapsed'], .06)
 
     def test_error_stays_terminal_after_pending_window_measurement(self):
         sd = FakeSoundDevice(fail_start='output')
         events = []
         AudioBackend(0, 1, sd).run('duplex', 5, threading.Event(), events.append)
         self.assertEqual(events[-1]['state'], 'error')
-        self.assertEqual(events[-1]['metered_frames'], 4000)
+        self.assertEqual(events[-1]['metered_frames'], 800)
         self.assertAlmostEqual(events[-1]['session_peak'], 12000/32768)
         self.assertFalse(any(event.get('state') == 'stopped' for event in events))
 

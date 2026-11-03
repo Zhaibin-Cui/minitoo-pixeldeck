@@ -1,5 +1,5 @@
 {
-  "version": "0.6.2",
+  "version": "0.7.0",
   "date": "2026-11-03",
   "platform": "Windows",
   "python": "3.12.14",
@@ -7,10 +7,10 @@
   "tk": 8.6,
   "tests": {
     "errors": 0,
-    "run": 205,
+    "run": 247,
     "skipped": 0,
     "failures": 0,
-    "seconds": 27.541
+    "seconds": 19.833
   },
   "renderers_checked": 18,
   "native_validation_version": "0.5.0",
@@ -42,11 +42,11 @@
     "dependency": "sounddevice 0.5.6",
     "physical_playback_checked": true,
     "physical_duplex_checked": true,
-    "offline_tests": 50,
+    "offline_tests": 63,
     "physical_microphone_checked": true,
     "endpoint_enumeration_checked": true,
     "duplex_operator_report": "audible prompt and responding computer meter; instrumented short trial recorded in hardware-audio.json",
-    "display_latency": "noticeable during capture; see validation.md",
+    "display_latency": "reduced transfer times with compact lossless frames; sound-to-screen synchronization remains unconfirmed",
     "hardware_record": "hardware-audio.json"
   },
   "winrt_production_physical_acceptance": false,
@@ -56,5 +56,16 @@
   "device_lab_dry_run_checked": true,
   "source_child_launch_and_unicode_checked": true,
   "winrt_production_startup_checked": true,
-  "winrt_production_clean_shutdown_checked": true
+  "winrt_production_clean_shutdown_checked": true,
+  "wheel_optional_imports_lazy": true,
+  "installed_renderers_checked": 18,
+  "launch_script_syntax_checked": true,
+  "launch_diagnostics_checked_without_device_access": true,
+  "display": {
+    "optional_dependency": "zstandard 0.25.0",
+    "default_codec": "jpeg",
+    "lossless_round_trip_tested": true,
+    "hardware_record": "hardware-display-codecs.json",
+    "compact_view_subjective_acceptance": false
+  }
 }

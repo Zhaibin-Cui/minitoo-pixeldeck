@@ -17,8 +17,11 @@ class DeviceConfig:
     quality: int = 72
     timeout: float = 5
     retries: int = 3
+    codec: str = "jpeg"
 
     def __post_init__(self):
+        if self.codec not in ('jpeg', 'zstd', 'auto'):
+            raise ValueError('codec must be jpeg, zstd or auto')
         if not all(isinstance(v, str) for v in (self.address, self.name, self.endpoint)):
             raise ValueError("Device identifiers must be strings")
         if self.address and not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", self.address):

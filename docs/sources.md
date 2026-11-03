@@ -1,10 +1,10 @@
-# Sources / inspiration is not a bundled asset
+# Sources and artwork
 
 ## Protocol research
 
 - [MiniToo findings](https://github.com/bugzmanov/divoom-minitoo/blob/main/FINDINGS.md): public investigation of command families and behavior.
 - [Photo protocol notes](https://github.com/alvinunreal/divoom-minitoo-osx/blob/main/PROTOCOL.md): transport envelope, chunking and response examples.
-- [Windows MiniToo tools](https://github.com/lewilou22/divoom-minitoo-tools): related independent experiments and useful context.
+- [MiniToo RGB/Zstandard format](https://github.com/lewilou22/divoom-minitoo-tools/blob/main/minitoo_protocol.py): independent live-display framing and codec research.
 
 Pixeldeck implements the documented wire fields in its own protocol module. It does not include a copied upstream source file or apply the project's license to upstream work.
 

@@ -50,7 +50,7 @@ def specimen(name, now=0):
 def frames(name,seconds=4,fps=8):
     if type(seconds) is not int or not 1 <= seconds <= 15 or type(fps) is not int or not 1 <= fps <= 30:
         raise ValueError('Preview duration must be 1..15 seconds and frame rate 1..30')
-    demo=specimen(name)
+    demo=create(name) if name=='audio' else specimen(name)
     for index in range(seconds*fps):
         now=index/fps
         if name in ('pulse','dashboard'):
@@ -74,6 +74,8 @@ def frames(name,seconds=4,fps=8):
             span=max(1,seconds*fps//3)
             mode_index=min(2,index//span)
             mode=('speaker','microphone','duplex')[mode_index]
+            if demo.mode != mode:
+                demo=create(name)
             amplitude=.35+.25*(.5+.5*math.sin(now*3))
             demo.handle({'type':'audio.status','state':'ready','mode':mode},now)
             demo.handle({'type':'audio.level','mode':mode,'elapsed':(index-mode_index*span)/fps,

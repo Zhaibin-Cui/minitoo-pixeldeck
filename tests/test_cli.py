@@ -8,6 +8,24 @@ from pixeldeck.config import DeviceConfig
 
 
 class CliTests(unittest.TestCase):
+    def test_display_overrides_leave_saved_config_unchanged(self):
+        original = DeviceConfig()
+        with patch('pixeldeck.cli.DeviceConfig.load', return_value=original), \
+                patch('pixeldeck.app.Application') as host:
+            main(['run', 'audio', '--codec', 'auto', '--chunk-delay-ms', '2'])
+            config = host.call_args.args[0]
+            self.assertEqual((config.codec, config.chunk_delay_ms), ('auto', 2))
+            self.assertEqual((original.codec, original.chunk_delay_ms), ('jpeg', 10))
+
+    def test_invalid_display_pacing_does_not_open_host(self):
+        with patch('pixeldeck.cli.DeviceConfig.load', return_value=DeviceConfig()), \
+                patch('pixeldeck.app.Application') as host:
+            for value in ('-1', '101', 'nan', 'inf'):
+                with self.subTest(value=value), contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit):
+                        main(['run', 'audio', '--chunk-delay-ms', value])
+            host.assert_not_called()
+
     def test_invalid_audio_selection_fails_before_opening_host(self):
         cases = (
             ['--audio'],

@@ -29,6 +29,8 @@ print(report)
 
 This explicitly opens hardware. Library callers should acquire `pixeldeck.instance.InstanceLock` if they share a runtime with other senders; the CLI does this for you.
 
+`DeviceConfig.codec` defaults to `jpeg`. With the optional `display` extra installed, `codec="zstd"` selects lossless RGB and `codec="auto"` chooses the smaller available encoding within the 16,000-byte limit. `pixeldeck.encoding.encode_frame(picture, codec="auto")` returns `(selected_codec, payload)` without hardware access. Selection happens before transmission; it does not negotiate device support or retry a failed transfer in another format. `show_clip()` remains JPEG.
+
 ## A headless event-fed display
 
 ```python
@@ -44,7 +46,7 @@ finally:
     pump.close()
 ```
 
-To recover while idle, route the driver's `on_disconnect` callback to `pump.reconnect`, as the GUI host does. `submit` returns immediately after copying pixels. Its boolean return indicates whether a new frame was queued; identical or closed submissions return false. Status callbacks run on a worker thread. A sink's `show` returns a dictionary containing `transfer_ms`; extra fields such as bytes and chunks pass through.
+To recover while idle, route the driver's `on_disconnect` callback to `pump.reconnect`, as the GUI host does. `submit` returns immediately after copying pixels. Its boolean return indicates whether a new frame was queued; identical or closed submissions return false. Status callbacks run on a worker thread. A sink's `show` returns a dictionary containing `transfer_ms`; fields such as codec, encoding time, bytes and chunks pass through. The pump adds `queue_ms` and `frame_age_ms`, measuring submission-to-send and submission-to-ACK respectively, not visible-pixel latency.
 
 ## A notification producer
 

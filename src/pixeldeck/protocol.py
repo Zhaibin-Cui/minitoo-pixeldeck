@@ -12,6 +12,8 @@ from PIL import Image, ImageOps
 SIZE = (160, 128)
 LIVE = 0x8B
 MAX_BLOB = 16000
+ZSTD_MAX_FRAMES = 4
+ZSTD_WINDOW_LOG = 17
 READY = bytes.fromhex("01 07 00 04 8b 55 00 01 ec 00 02")
 DONE = bytes.fromhex("01 09 00 04 bd 55 13 01 05 00 38 01 02")
 HEARTBEAT_PREFIX = bytes.fromhex("04 f7 55")
@@ -92,6 +94,43 @@ def jpeg_clip(images, period_ms=1000, quality=72):
         if len(out) > MAX_BLOB:
             raise ValueError("Upload exceeds 16 KB budget; stream separate frames instead")
     return bytes(out)
+
+
+def zstd_clip(images, period_ms=1000, level=9):
+    """Encode lossless 0x25 RGB frames with a 128 KiB decompression window.
+
+    At most four frames keep raw input bounded to 245760 bytes. Requires the
+    optional zstandard package; no dependency is loaded by the JPEG path.
+    """
+    if type(period_ms) is not int or not 1 <= period_ms <= 65535:
+        raise ValueError("period_ms must be an integer in 1..65535")
+    if type(level) is not int or not 1 <= level <= 17:
+        raise ValueError("level must be an integer in 1..17")
+    images = list(islice(images, ZSTD_MAX_FRAMES + 1))
+    if not 1 <= len(images) <= ZSTD_MAX_FRAMES:
+        raise ValueError("Zstandard clips need 1..4 frames")
+    if any(not isinstance(image, Image.Image) or image.size != SIZE for image in images):
+        raise ValueError("Every frame must be a 160 x 128 Pillow image")
+    try:
+        import zstandard as zstd
+    except (ImportError, OSError) as exc:
+        raise RuntimeError("Zstandard display encoding requires the optional zstandard package") from exc
+
+    raw = b"".join(image.convert("RGB").tobytes() for image in images)
+    params = zstd.ZstdCompressionParameters.from_level(
+        level, source_size=len(raw), window_log=ZSTD_WINDOW_LOG,
+        write_content_size=True, write_checksum=False, write_dict_id=False,
+        threads=0,
+    )
+    compressed = zstd.ZstdCompressor(compression_params=params).compress(raw)
+    info = zstd.get_frame_parameters(compressed)
+    if (compressed[:4] != b"\x28\xb5\x2f\xfd" or info.content_size != len(raw)
+            or info.window_size > 1 << ZSTD_WINDOW_LOG or info.has_checksum or info.dict_id):
+        raise ValueError("Unexpected Zstandard frame parameters")
+    if len(compressed) + 10 > MAX_BLOB:
+        raise ValueError("Upload exceeds 16 KB budget; stream separate frames instead")
+    return struct.pack(">BBHBBI", 0x25, len(images), period_ms, 8, 10, len(compressed)) + compressed
+
 
 @dataclass(frozen=True)
 class Upload:

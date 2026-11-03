@@ -7,19 +7,22 @@ Each row names a runnable demo, CLI operation or diagnostic. Hardware observatio
 | Implemented capability | Demo / recipe | Verification |
 |---|---|---|
 | Still RGB image upload | `image`, Link Lab PATTERN, `examples/device_lab.py` | Protocol simulation; recorded live display sessions |
+| Lossless RGB/Zstandard encoding | `image --codec zstd`, `run --codec zstd` | Pixel round-trip and bounds tests; controlled hardware transfer observations |
+| Bounded local codec selection | `run --codec auto`, `examples/device_lab.py --operation still --codec auto` | Chooses the smaller available payload; budget/dependency tests; no device capability negotiation |
 | Repeated live frames | Dashboard, Pulse, Bit Buddy, Neon Rain, Orbital | Latest-frame pipeline tests; Dashboard hardware session with 583 ACKs |
 | Static-frame suppression | Button Lab, paused Rain | Automatic check |
 | Input while frames transmit | Every interactive cartridge | Blocked-sink concurrency test; predecessor media-input session |
 | Next / Previous / Play / Pause | Navigation + Button Lab + Focus | Callbacks observed in music mode; paired/missing tap callbacks remain unresolved |
-| Input backend selection and activation-burst guard | Button Lab with `--input-backend auto`, `winrt` or `legacy` | First activation immediate; 250 ms burst coalescing; physical acceptance pending |
+| Input backend selection and activation-burst guard | Button Lab with `--input-backend auto`, `winrt` or `legacy` | First activation immediate; 250 ms burst coalescing; exact physical tap counts remain unverified |
 | Contextual selection, detail and return | Dashboard | Grid/detail state tests; three normalized media actions |
 | Explicit session exit | Dashboard EXIT, desktop Exit / Ctrl+Q | Host cleanup path; last device frame remains |
 | Separate mode and connection status | Desktop host | Preview/live startup checks; independent display/input status |
 | Transfer/input snapshots without upload feedback | Link Lab (`link`) | Observations collect silently; explicit snapshot refresh; current ACK appears later |
 | Explicit audio endpoint discovery | `pixeldeck audio-devices` | OS enumeration only; no stream or physical-effect verification |
-| Short tone playback | Audio Lab SPEAKER | Optional backend and offline stream checks; physical playback pending |
-| Microphone RMS, peak and waveform | Audio Lab MIC | Explicit input selection, bounded display samples; physical capture pending |
-| Independent playback and capture | Audio Lab DUPLEX | No microphone loopback or audio files; physical duplex test pending |
+| Short tone playback | Audio Lab SPEAKER | Repeated tones heard on the tested Windows setup; full live scope |
+| Compact instantaneous microphone RMS | Audio Lab MIC | Physical capture observed; 50 ms windows, ≤20 Hz reports; device display remains slower |
+| Session RMS, peak and frame coverage | Audio Lab SESSION | Weighted metering, final partial windows and drop-count tests; retained results after stop |
+| Independent playback and capture | Audio Lab DUPLEX | Concurrent tone and microphone operation observed; no mic loopback or audio files |
 | Monotonic time events | Focus Foundry | Elapsed-time and pause/resume checks |
 | CPU and memory | Pulse | Windows provider; Linux implementation not host-tested |
 | Passive network counters | Net Scope | Optional source, bounded history and freeze behavior checks |
@@ -35,6 +38,7 @@ Each row names a runnable demo, CLI operation or diagnostic. Hardware observatio
 | JPEG multi-frame encoding | `clip`, `examples/device_lab.py --operation clip`, `protocol_lab.py` | Encoding and bounds checks; device playback experimental |
 | Packet framing / fragmentation | `protocol_lab.py` | Golden bytes and corrupted packet tests |
 | ACK, resend and timeout | `python examples/driver_lab.py` | Simulated fragmented READY, resend and missing-response cases |
+| Encoding, transfer and frame-age diagnostics | Host logs, Link Lab, `examples/device_lab.py` | Separate encoding/ACK stages and host submit-to-ACK age; no acoustic-latency claim |
 | Idle heartbeat draining | `python examples/driver_lab.py` | Simulated heartbeat stream, bounded trace; no hardware input inference |
 | Replaceable sink, deduplication and idle recovery | `python examples/pipeline_lab.py` | Blocked first frame, newest pending frame, simulated disconnect and cleanup |
 | Brightness command | `brightness`, `examples/device_lab.py --operation brightness` | Simulated matching ACK; physical effect unverified; dry run by default |

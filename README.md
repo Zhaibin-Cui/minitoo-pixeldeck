@@ -4,12 +4,12 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-9affb3?style=flat-square&amp;labelColor=152440" alt="License: MIT"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python_core-3.10%2B-54edff?style=flat-square&amp;labelColor=152440" alt="Python core: 3.10+"></a>
   <a href="docs/usage.md#bluetooth-compatibility"><img src="https://img.shields.io/badge/live_backend-Windows-ff73bc?style=flat-square&amp;labelColor=152440" alt="Live backend: Windows"></a>
-  <a href="docs/validation.md"><img src="https://img.shields.io/badge/0.6.2-205_offline_tests_passed-9affb3?style=flat-square&amp;labelColor=152440" alt="0.6.2: 205 offline tests passed"></a>
+  <a href="docs/validation.md"><img src="https://img.shields.io/badge/0.7.0-247_offline_tests_passed-9affb3?style=flat-square&amp;labelColor=152440" alt="0.7.0: 247 offline tests passed"></a>
 </p>
 
 <p align="center"><strong>MiniToo protocol tools, live pixels and interactive demos.</strong><br>
 Protocol tools · independent streams · eighteen original pixel cartridges<br>
-Python 3.10+ core · Python 3.11+ WinRT input · MIT · v0.6.2</p>
+Python 3.10+ core · Python 3.11+ WinRT input · MIT · v0.7.0</p>
 
 MiniToo Pixeldeck is an independent, unofficial reverse-engineering toolkit for the **Divoom MiniToo**. Send images, build interactive pixel scenes, inspect the protocol, or use the display as a miniature system monitor. The software runs on your computer and leaves the device firmware unchanged. Importing the package never connects a device.
 
@@ -35,6 +35,7 @@ Watch network traffic, time a focus session, or follow a build from the desk. Ea
 ```text
 src/pixeldeck/
   protocol.py     Pure framing, incremental decode, image fitting, clip encoding
+  encoding.py     JPEG / lossless pixel encoding, bounded payload selection
   driver.py       RFCOMM transactions, independent RX, deadlines and retransmission
   engine.py       One display writer, latest-frame mailbox, deduplication, reconnect
   inputs.py       Input supervision, activation guard and bounded JSONL pushes
@@ -56,13 +57,13 @@ src/pixeldeck/
 
 **Animation uses deadlines.** A cartridge requests its next meaningful tick. Static screens request none. Host measurements run in a separate worker only for the visible, unfrozen cartridge. A paused scene cancels its animation timer; data collection never lives inside a renderer.
 
-**The screen keeps up with the present.** There is one frame in transit and at most one pending frame. A newer state replaces an obsolete pending frame. Identical pixels are not uploaded again. Input handling does not wait for image transmission; a frame already in transit must still finish or time out.
+**Only the newest pending frame is kept.** There is one frame in transit and at most one pending frame. A newer state replaces an obsolete pending frame. Identical pixels are not uploaded again. Input handling does not wait for image transmission; a frame already in transit must still finish or time out.
 
 The hardware paths are different: image packets use **Classic Bluetooth RFCOMM channel 1**; supported physical inputs currently use a **Windows AVRCP media session**. Independent workers do not create independent radio bandwidth. The input session uses muted audio on the configured device endpoint and can receive system media keys.
 
 | Layer | Extension seam | Hardware required? |
 |---|---|---|
-| Protocol | `packet`, `Decoder`, `jpeg_clip`, `upload` | No |
+| Protocol | `packet`, `Decoder`, `jpeg_clip`, `zstd_clip`, `upload` | No |
 | Driver | `MiniToo(config, socket_factory=...)` | Only for a real socket |
 | Output | `FramePump(sink_factory)`; sink implements `show` / `close` | No |
 | Cartridge | `render`, `handle`, `next_delay` | No |
@@ -80,7 +81,7 @@ For the full Windows setup, use Python 3.11+ from a source checkout:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio]"
+.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio,display]"
 .\.venv\Scripts\pixeldeck.exe doctor
 .\.venv\Scripts\pixeldeck.exe run buddy
 ```
@@ -126,7 +127,7 @@ Input defaults to `--input-backend auto`: Windows/Python 3.11+ with the matching
 
 The configured endpoint must match exactly one speaker output. Media callbacks map to previous, next and activate (both Play and Pause). The first activation is delivered immediately; further Play/Pause callbacks within 250 ms of it are coalesced. Deliberate fast taps can therefore merge. Joystick up/down/center and the original Back key have no application mapping.
 
-The new backend and activation guard still need physical acceptance testing. Earlier sessions produced paired/missing Play/Pause callbacks and intermittent legacy startup failures. Before a device-input test, confirm the MiniToo's **Bluetooth Music playback screen** and verify Left/Right callbacks. Desktop controls remain available. [Input setup and evidence →](docs/input-research.md)
+Exact one-action-per-press behavior remains unverified. Earlier sessions produced paired/missing Play/Pause callbacks and intermittent legacy startup failures. Media controls require the MiniToo's **Bluetooth Music playback screen**; its native menus handle navigation locally. Desktop controls remain available. [Input setup and evidence →](docs/input-research.md)
 
 | Start mode | Display output | Input |
 |---|---|---|
@@ -142,7 +143,7 @@ On Windows, [launch.ps1](launch.ps1) offers the same three modes. It defaults to
 powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Interactive -Demo dashboard
 ```
 
-Use `-Mode Display` for output without device input, `-InputBackend WinRT` or `Legacy` to select input, or `-Check` for redacted diagnostics without connecting. [Launcher options →](docs/usage.md#windows-launcher)
+Use `-Mode Display` for output without device input, `-InputBackend WinRT` or `Legacy` to select input, or `-Check` for redacted diagnostics without connecting. Optional `-Codec` and `-ChunkDelayMs` override display settings for one run. [Launcher options →](docs/usage.md#windows-launcher)
 
 ### 3. Send, export and push
 
@@ -168,7 +169,7 @@ Run `pixeldeck run build --stdin` and let your own producer report state changes
 
 ## Insert a cartridge
 
-These are **real program renders**, not concept art. Gallery GIFs are exported offline at 8 FPS. Device animation requests 3 FPS by default and is limited by actual Bluetooth throughput. Metrics and audio waveforms below are synthetic fixtures. The device illustration is original stylized artwork, not a product photo.
+These are **real program renders** with synthetic metric and audio data. Gallery GIFs are exported offline; their frame rate does not establish device speed. Device animation is limited by actual Bluetooth throughput. The device illustration is original stylized artwork.
 
 | What belongs on your desk? | Start here |
 |---|---|
@@ -207,16 +208,25 @@ ACKs and input observations accumulate without triggering a redraw or another up
 
 ### Audio Lab
 
-<img src="docs/assets/audio.gif" alt="Synthetic Audio Lab speaker, microphone and duplex waveforms" width="480">
+<img src="docs/assets/audio.gif" alt="Synthetic compact microphone RMS meter followed by retained session statistics" width="480">
 
-SPEAKER plays a test tone, MIC displays input levels and a waveform, and DUPLEX does both independently. There is no microphone-to-speaker loopback or audio-file recording. Audio stays off until explicitly enabled and activated.
+SPEAKER repeats a short test tone and shows the full scope. MIC displays instantaneous RMS on a compact meter; DUPLEX adds an independent output tone. There is no microphone-to-speaker loopback or audio-file recording. Audio stays off until explicitly enabled and activated.
 
 ```shell
 pixeldeck audio-devices --match MiniToo
 pixeldeck run audio --audio --audio-input INPUT_ID --audio-output OUTPUT_ID
 ```
 
-Replace the IDs with endpoints reported by `audio-devices`. Left / Right chooses a mode while idle; Activate starts its five-second test. Activate or desktop Back stops an active test, and leaving the page stops audio. The final SESSION view retains measured RMS, peak and frame coverage. Add `--send` to display it on the MiniToo. Speaker, microphone and duplex operation have been checked on one Windows setup; device display updates slow down during capture. [Audio setup →](docs/usage.md#audio-lab) · [Observed results →](docs/validation.md#audio-lab--2026-11-03)
+Replace the IDs with endpoints reported by `audio-devices`. Left / Right chooses a mode while idle; Activate starts its five-second test. Activate or desktop Back stops an active test, and leaving the page stops audio. The final SESSION view retains measured RMS, peak and frame coverage. Add `--send` to display it on the MiniToo. Speaker, microphone and duplex operation have been checked on one Windows setup. [Audio setup →](docs/usage.md#audio-lab) · [Observed results →](docs/validation.md#audio-lab--2026-11-03)
+
+For pixel interfaces, the optional lossless encoder sends substantially fewer bytes. With capture active, a controlled two-send comparison reduced the same source frame from 7,589 to 1,319 bytes and upload acknowledgment time from about 0.91 s to 0.23 s. This measures transfers on one device, not sound-to-screen latency. JPEG remains the default; `auto` chooses the smaller available encoding before transmission.
+
+```shell
+python -m pip install -e ".[display]"
+pixeldeck run audio --audio --audio-input INPUT_ID --send --codec auto --chunk-delay-ms 2
+```
+
+In this input-only example, choose **MIC** before Activate. The 2 ms pacing setting was tested on one host; it is an override, not a compatibility guarantee. Smaller frames reduce transfer cost, but noticeable display delay remains a limitation. [Encoding and timing evidence →](docs/validation.md#lossless-display--2026-11-03)
 
 ### System monitors and desk tools
 
@@ -295,6 +305,7 @@ These examples finish on their own and work without a device:
 
 ```shell
 python examples/device_lab.py
+python examples/device_lab.py --operation still --codec auto
 python examples/driver_lab.py
 python examples/pipeline_lab.py
 ```
@@ -312,10 +323,10 @@ python examples/pipeline_lab.py
 | Area | Current evidence |
 |---|---|
 | Live display | Dashboard completed ten minutes with **583 acknowledged frames**, **469 ms median transfer**, two retransmission requests and clean shutdown. ACK time is not visible-pixel latency. |
-| Physical input | Previous/Next and Play/Pause callbacks were observed in Bluetooth Music mode. The new WinRT backend and 250 ms activation guard await physical acceptance testing. Up/Down/Back have no verified mapping. |
-| Offline behavior | Tests cover framing, retransmission, deadlines, bounded queues, reconnect, state machines, sources, pushed events and GUI cleanup. Current counts are in [validation](docs/validation.md). |
+| Physical input | Previous/Next and Play/Pause callbacks were observed in Bluetooth Music mode. Exact one-action-per-press behavior remains unverified. Up/Down/Back have no application mapping. |
+| Offline behavior | **247 tests passed in 19.833 s**, covering codecs, framing, deadlines, queues, reconnect, state machines, audio metering, sources and GUI cleanup. [Validation record](docs/validation.md). |
 | Portability | Rendering and protocol code are portable; the bundled Bluetooth backend is Windows. Host metrics depend on platform APIs and optional psutil support. |
-| Audio | Explicit endpoint selection and short speaker/microphone/duplex tests are implemented. Physical playback/capture acceptance is pending. |
+| Audio | Repeated tones, microphone levels and concurrent duplex operation were observed in short Windows trials. Display delay remains noticeable; general audio lifecycle and endurance are not established. |
 | Long runs | Live uploads use no gallery-save or firmware command. Device RAM/flash behavior, overnight endurance and simultaneous phone music remain unverified. |
 
 Detailed sessions and earlier release checks are in [validation](docs/validation.md). Raw-input findings and the physical test procedure are in [input investigation](docs/input-research.md).

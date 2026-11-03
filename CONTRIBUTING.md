@@ -6,4 +6,6 @@ Run the test suite and regenerate gallery assets when a renderer changes. Public
 
 Protocol changes need bounded buffers, explicit deadlines, and tests for missing responses. Avoid exposing undocumented destructive operations through a generic raw-send command. Optional experimental commands should be labeled as such in the capability map.
 
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit messages: `type(scope): summary`. Choose `feat`, `fix`, `docs`, `test`, `refactor`, `build`, `ci` or `chore`; omit the scope for changes that span the package. Keep the summary short and describe the change, for example `fix(audio): initialize COM before opening WASAPI streams`. Use the body for the reason and relevant validation.
+
 The release tool validates the public file set and creates an archive locally. Publishing a repository or release is a separate manual operation.

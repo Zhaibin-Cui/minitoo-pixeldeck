@@ -41,6 +41,8 @@ class FramePump:
 
     A frame already on the wire completes before the newest pending state is sent.
     on_status runs on a worker thread; marshal GUI changes onto your UI event loop.
+    queue_ms measures submit to show; frame_age_ms measures submit to ACK.
+    These frame timings do not measure acoustic capture latency.
     """
     def __init__(self, sink_factory, on_status=lambda event: None, retries=3):
         if type(retries) is not int or not 0 <= retries <= 5:
@@ -61,6 +63,7 @@ class FramePump:
     def submit(self, image, received_at=None):
         if image.size != SIZE:
             raise ValueError("Frames must be 160 x 128")
+        submitted_at = time.monotonic()
         picture = image.convert("RGB").copy()
         digest = hashlib.sha256(picture.tobytes()).digest()
         with self.guard:
@@ -68,7 +71,7 @@ class FramePump:
                 return False
             self.digest = digest
             self.sequence += 1
-            self.last = (self.sequence, picture, received_at)
+            self.last = (self.sequence, picture, received_at, submitted_at)
             return self.pending.put(self.last)
 
     def reconnect(self, error=None):
@@ -96,12 +99,21 @@ class FramePump:
                             self.sink = None
                         if self.sink is None:
                             self.sink = self.factory()
-                        number, picture, received_at = job
+                        with self.guard:
+                            if self.stop.is_set():
+                                return
+                            if self.last is not None and self.last[0] > job[0]:
+                                job = self.last
+                        number, picture, received_at, submitted_at = job
+                        started_at = time.monotonic()
                         report = self.sink.show(picture)
+                        acknowledged_at = time.monotonic()
                         self.acknowledged = number
-                        report.update(type="frame.ack", sequence=number, replaced=self.pending.replaced)
+                        report.update(type="frame.ack", sequence=number, replaced=self.pending.replaced,
+                                      queue_ms=round((started_at-submitted_at)*1000, 2),
+                                      frame_age_ms=round((acknowledged_at-submitted_at)*1000, 2))
                         if received_at is not None:
-                            report["input_to_ack_ms"] = round((time.monotonic()-received_at)*1000, 2)
+                            report["input_to_ack_ms"] = round((acknowledged_at-received_at)*1000, 2)
                         self.timings.append(report["transfer_ms"])
                         self.on_status(report)
                         break

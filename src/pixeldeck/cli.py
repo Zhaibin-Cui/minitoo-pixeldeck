@@ -1,5 +1,6 @@
 """Command-line entry points. Hardware access is explicit in each command."""
 import argparse
+from dataclasses import replace
 import json
 from pathlib import Path
 import sys
@@ -32,6 +33,7 @@ def build_parser():
     config.add_argument('--address', required=True)
     config.add_argument('--endpoint', default='MiniToo')
     config.add_argument('--output', type=Path)
+    config.add_argument('--codec', choices=('jpeg', 'zstd', 'auto'), default='jpeg')
 
     run = commands.add_parser('run')
     run.add_argument('demo', nargs='?', choices=list(CATALOG), default='buddy')
@@ -44,10 +46,13 @@ def build_parser():
     run.add_argument('--stdin', action='store_true')
     run.add_argument('--duration', type=int, default=600)
     run.add_argument('--config')
+    run.add_argument('--codec', choices=('jpeg', 'zstd', 'auto'), help='Override live-frame encoding for this run')
+    run.add_argument('--chunk-delay-ms', type=float, help='Override packet pacing (0..100 ms) for this run')
 
     show = commands.add_parser('image')
     show.add_argument('path', type=Path)
     show.add_argument('--fit', choices=('contain', 'cover', 'stretch'), default='contain')
+    show.add_argument('--codec', choices=('jpeg', 'zstd', 'auto'))
     clip = commands.add_parser('clip', help='Experimental small GIF upload; preview by default')
     clip.add_argument('path', type=Path)
     clip.add_argument('--frames', type=int, default=2)
@@ -65,6 +70,16 @@ def build_parser():
     return parser
 
 
+def _display_config(args, parser):
+    config = DeviceConfig.load(args.config)
+    overrides = {field: getattr(args, field) for field in ('codec', 'chunk_delay_ms')
+                 if getattr(args, field, None) is not None}
+    try:
+        return replace(config, **overrides) if overrides else config
+    except ValueError as exc:
+        parser.error(str(exc))
+
+
 def run_host(args, parser):
     if not 0 <= args.duration <= 86400:
         parser.error('duration must be 0..86400; 0 means until closed')
@@ -77,7 +92,7 @@ def run_host(args, parser):
         parser.error('Audio device selection requires --audio')
     if args.audio and all(index is None for index in audio_devices):
         parser.error('Select --audio-input and/or --audio-output from audio-devices')
-    config = DeviceConfig.load(args.config)
+    config = _display_config(args, parser)
     if args.send and not config.address:
         parser.error('No device configured. Use configure --address YOUR_ADDRESS or --config PRIVATE_FILE. '
                      'Preview alone does not update the MiniToo.')
@@ -88,7 +103,7 @@ def run_host(args, parser):
 
 
 def device_command(args, parser):
-    config = DeviceConfig.load(args.config)
+    config = _display_config(args, parser)
     home().mkdir(parents=True, exist_ok=True)
     if args.command == 'brightness':
         from .protocol import brightness_packet
@@ -136,7 +151,7 @@ def main(argv=None):
         for key, cls in CATALOG.items():
             print(f'{key:9} {cls.title}\n          {cls.description}')
     elif args.command == 'configure':
-        print(DeviceConfig(address=args.address, endpoint=args.endpoint).save(args.output))
+        print(DeviceConfig(address=args.address, endpoint=args.endpoint, codec=args.codec).save(args.output))
     elif args.command == 'doctor':
         import importlib.util
         import PIL
@@ -146,6 +161,8 @@ def main(argv=None):
                       tkinter=importlib.util.find_spec('tkinter') is not None,
                       telemetry_extra=importlib.util.find_spec('psutil') is not None,
                       audio_extra=importlib.util.find_spec('sounddevice') is not None)
+        result.update(display_codec=DeviceConfig.load(args.config).codec,
+                      zstd_extra=importlib.util.find_spec('zstandard') is not None)
         print(json.dumps(result, indent=2))
     elif args.command == 'audio-devices':
         from .audio import list_devices

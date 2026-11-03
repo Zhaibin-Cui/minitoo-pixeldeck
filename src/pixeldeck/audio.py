@@ -6,8 +6,38 @@ Raw PortAudio callbacks only fill/copy buffers and wake the reporting worker.
 from array import array
 import math
 import re
+import sys
 import threading
 import time
+
+
+def _initialize_com():
+    """Initialize this Windows caller's apartment, returning only owned cleanup."""
+    if sys.platform != 'win32':
+        return None
+    import ctypes
+    ole32 = ctypes.WinDLL('ole32')
+    ole32.CoInitializeEx.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    ole32.CoInitializeEx.restype = ctypes.c_long
+    ole32.CoUninitialize.argtypes = []
+    ole32.CoUninitialize.restype = None
+    result = int(ole32.CoInitializeEx(None, 0)) & 0xffffffff  # COINIT_MULTITHREADED
+    if result == 0x80010106:  # RPC_E_CHANGED_MODE: preserve the existing apartment.
+        return None
+    if result not in (0, 1):  # S_OK and S_FALSE each acquire one reference.
+        raise RuntimeError(f'Windows audio COM initialization failed (HRESULT 0x{result:08X})')
+    owner = threading.get_ident()
+    closed = False
+
+    def cleanup():
+        nonlocal closed
+        if closed:
+            return
+        if threading.get_ident() != owner:
+            raise RuntimeError('Windows audio COM cleanup must run on its owning thread')
+        closed = True
+        ole32.CoUninitialize()
+    return cleanup
 
 
 def _load_sounddevice():
@@ -77,11 +107,11 @@ def _stream_latency_ms(stream):
         return None
 
 
-_METER_INTERVAL = .1
+_METER_INTERVAL = .05
 
 
 class _WindowMeter:
-    """Four preallocated 100 ms slots; producer never waits for the consumer."""
+    """Four preallocated 50 ms slots; producer never waits for the consumer."""
     SLOTS = 4
 
     def __init__(self, rate, channels, seconds):
@@ -205,6 +235,7 @@ class AudioBackend:
         failure = [None]
         xruns = [0, 0]
         latencies = {'input_latency_ms': None, 'output_latency_ms': None}
+        com_cleanup = None
 
         def status(state, message):
             summary = (meter.summary() if meter is not None else
@@ -222,14 +253,14 @@ class AudioBackend:
             last = -math.inf
             pending = False
             while True:
-                delay = max(0, last+_METER_INTERVAL-time.monotonic()) if pending else None
+                delay = max(0, last+_METER_INTERVAL-time.perf_counter()) if pending else None
                 meter.wake.wait(delay)
                 meter.wake.clear()
                 finished = meter.finished.is_set()
                 while (record := meter.take()) is not None:
                     meter.measure(record)
                     pending = True
-                now = time.monotonic()
+                now = time.perf_counter()
                 if pending and now-last >= _METER_INTERVAL and not delivery_closed.is_set():
                     last, pending = now, False
                     try:
@@ -240,7 +271,7 @@ class AudioBackend:
                         delivery_closed.set()
                 if finished:
                     # The terminal status carries any final partial measurement
-                    # suppressed by the ten-events-per-second live limit.
+                    # suppressed by the twenty-events-per-second live limit.
                     return
 
         def finished():
@@ -255,6 +286,7 @@ class AudioBackend:
             status('starting', 'Preparing explicit audio devices')
             if stop_event.is_set():
                 return
+            com_cleanup = _initialize_com()
             sd = self._sd if self._sd is not None else _load_sounddevice()
 
             def settings(index, direction):
@@ -339,27 +371,31 @@ class AudioBackend:
         except Exception as exc:
             failure[0] = f'{type(exc).__name__}: {_friendly(exc)}'
         finally:
-            closing.set()
-            for stream in reversed(streams):
-                try:
-                    stream.abort()
-                except Exception:
-                    failure[0] = failure[0] or 'Audio stream abort failed'
-                finally:
+            try:
+                closing.set()
+                for stream in reversed(streams):
                     try:
-                        stream.close()
+                        stream.abort()
                     except Exception:
-                        failure[0] = failure[0] or 'Audio stream close failed'
-            if meter is not None:
-                meter.finish()
-            if reporter is not None:
-                reporter.join(timeout=1)
-                if reporter.is_alive():
-                    failure[0] = failure[0] or 'Audio reporting callback did not return'
-            elif meter is not None:
-                report()
-            delivery_closed.set()
-            if failure[0] is not None:
-                status('error', failure[0])
-            else:
-                status('stopped', 'Audio stopped')
+                        failure[0] = failure[0] or 'Audio stream abort failed'
+                    finally:
+                        try:
+                            stream.close()
+                        except Exception:
+                            failure[0] = failure[0] or 'Audio stream close failed'
+                if meter is not None:
+                    meter.finish()
+                if reporter is not None:
+                    reporter.join(timeout=1)
+                    if reporter.is_alive():
+                        failure[0] = failure[0] or 'Audio reporting callback did not return'
+                elif meter is not None:
+                    report()
+                delivery_closed.set()
+                if failure[0] is not None:
+                    status('error', failure[0])
+                else:
+                    status('stopped', 'Audio stopped')
+            finally:
+                if com_cleanup is not None:
+                    com_cleanup()

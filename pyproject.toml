@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minitoo-pixeldeck"
-version = "0.6.2"
+version = "0.7.0"
 description = "Small screen. Big personality. Event-driven MiniToo toolkit and pixel playground."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,6 +15,7 @@ keywords = ["minitoo", "pixel-art", "bluetooth", "reverse-engineering"]
 [project.optional-dependencies]
 telemetry = ["psutil>=5.9,<8"]
 audio = ["sounddevice>=0.5,<0.6"]
+display = ["zstandard>=0.23,<1"]
 windows-input = [
     "winrt-runtime==4.1.0; sys_platform == 'win32' and python_version >= '3.11'",
     "winrt-Windows.Foundation==4!10.0.28000.2957; sys_platform == 'win32' and python_version >= '3.11'",

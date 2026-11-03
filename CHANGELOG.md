@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+
+- Add optional lossless RGB/Zstandard live frames and per-frame `auto` encoding selection; preserve JPEG defaults and native JPEG clips.
+- Expose codec and packet-pacing overrides without modifying saved configuration.
+- Initialize and release COM on the Windows audio thread, fixing a reproduced WASAPI stream-start failure.
+- Use 50 ms audio measurement windows and a compact live RMS view; keep full session statistics after capture.
+- Send the latest frame after connection setup; report encoding time, queue wait and frame age separately.
+- Document the microphone-loaded encoding comparison and add codec selection to the device write lab.
+- Fix timestamp ordering in the offline audio export and align the custom cartridge example with its Activate control.
+
 ## 0.6.2
 
 - Meter continuous audio through four bounded 100 ms windows; report session RMS, peak and measured/dropped frames, including the final partial window.

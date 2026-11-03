@@ -6,7 +6,7 @@ For the full Windows setup, use Python 3.11+ in a virtual environment:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio]"
+.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio,display]"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Preview -Demo dashboard
 ```
 
@@ -43,6 +43,20 @@ Install `python -m pip install -e ".[telemetry]"` for the optional psutil-backed
 
 `--duration 600` is the run default. `--duration 0` runs until closed. Image fit modes: contain, cover, stretch. Alpha is composited over black. `clip` accepts up to eight source frames but still enforces the 16 KB payload budget. Use separate streamed frames for larger scenes.
 
+## Display encoding
+
+JPEG remains the default in `DeviceConfig.codec`. Install `python -m pip install -e ".[display]"` to enable the optional Zstandard encoder.
+
+| Run option | Selection |
+|---|---|
+| `--codec jpeg` | Existing JPEG path; no optional display dependency |
+| `--codec zstd` | Lossless RGB/Zstandard; missing dependency or oversized payload fails before sending |
+| `--codec auto` | Smaller available encoding within 16,000 bytes; JPEG wins ties |
+
+`auto` compares encoded data locally; it does not discover which formats a device supports. It can use JPEG when Zstandard is unavailable or too large, and Zstandard when JPEG is too large. If neither fits, it reports an error. It never switches formats after a transport failure. Native `clip` uploads remain JPEG.
+
+`run --codec ...` overrides configuration for that process. `image --codec ...` also supports single-image selection. `run --chunk-delay-ms N` overrides packet pacing for that run (0–100 ms); the general default remains 10 ms. These overrides do not rewrite private configuration.
+
 ## Windows launcher
 
 From the repository directory:
@@ -54,6 +68,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\launch.ps1 -Mode Preview -
 `Preview` uses desktop controls only. `Display` adds Bluetooth frame output. `Interactive` adds media input, checks WinRT dependencies or builds the selected legacy bridge if missing. Preview and Dashboard are the defaults. The launcher looks for `.venv`, then `py` or `python`; it does not install dependencies.
 
 Optional arguments are `-Python FULL_PYTHON_EXE`, `-Config PRIVATE_DEVICE_JSON`, `-RuntimeDirectory PRIVATE_FOLDER`, `-InputBackend Auto|WinRT|Legacy` and `-Duration 600`. Audio Lab accepts `-Audio` with `-AudioInput ID` and/or `-AudioOutput ID`. A duration of `0` runs until closed. `-Check` runs redacted static diagnostics without connecting in any mode.
+
+`-Codec jpeg|zstd|auto` and `-ChunkDelayMs N` (0–100) override live encoding and packet pacing for that run. Omitting them preserves the saved settings, whose defaults are JPEG and 10 ms.
 
 ## Input backends
 
@@ -69,7 +85,7 @@ Left / Right navigate; Enter / Space activate. Desktop **Esc / Back** returns fr
 
 Dashboard has six tiles: CPU, MEMORY, NETWORK, STORAGE, POWER and EXIT. Left / Right wraps through the grid; Activate opens a metric. Detail view uses Left / Right to cycle through the five metrics, and Activate or desktop Back / Esc to return to the grid. Desktop Back from the grid leaves Dashboard for Bit Buddy. Activating EXIT closes the host application and releases its connections, leaving the last frame on the device.
 
-The input adapter maps callbacks to **previous, next and activate**. Both Play and Pause normalize to activate. The first activation is delivered immediately; further Play/Pause callbacks within 250 ms of it are coalesced. This adds no wait to the first action, but can merge deliberate fast taps. Previous/Next are not coalesced. The new handling still needs physical acceptance testing; see [input evidence and diagnostics](input-research.md).
+The input adapter maps callbacks to **previous, next and activate**. Both Play and Pause normalize to activate. The first activation is delivered immediately; further Play/Pause callbacks within 250 ms of it are coalesced. This adds no wait to the first action, but can merge deliberate fast taps. Previous/Next are not coalesced. Exact one-action-per-press behavior remains unverified; see [input evidence and diagnostics](input-research.md).
 
 Activate returns from Dashboard detail. Arbitrary joystick movement and the original hardware Back key have no application mapping.
 
@@ -105,27 +121,40 @@ Replace the IDs with the integer indices returned by `audio-devices`; run it wit
 | Mode | Required endpoint | Effect |
 |---|---|---|
 | SPEAKER | `--audio-output OUTPUT_ID` | Quiet three-note motif repeated during the five-second test |
-| MIC | `--audio-input INPUT_ID` | RMS/peak in dBFS and a bounded waveform with labeled x16 display gain |
-| DUPLEX | Both | Independent tone output and microphone observation; no mic-to-speaker echo |
+| MIC | `--audio-input INPUT_ID` | Compact instantaneous RMS meter; full session statistics after stopping |
+| DUPLEX | Both | Independent tone and compact microphone meter; no mic-to-speaker echo |
 
 While idle, Left / Right selects the mode. Activate starts the test; Activate or desktop Back stops it. Back while idle leaves Audio Lab, and choosing another cartridge cancels an active test. A missing input/output direction produces a visible error instead of selecting a different device. Add `--send` for MiniToo display output; audio output itself does not require that flag.
 
-Live meters show each reported 100 ms window in dBFS, with a one-second peak hold and a bar spanning -60 to 0 dBFS. Reports arrive at most ten times per second; Bluetooth display uploads can be slower. The WAVE X16 scope magnifies only its plotted peak-bin preview, not the microphone signal or system recording gain. Zero is shown as -INF, and missing data as --. Speaker mode measures generated output PCM; MIC and DUPLEX measure microphone PCM.
+MIC and DUPLEX show the current reported window's RMS, rounded to integer dBFS, above a large -60..0 dBFS bar. The bar follows instantaneous RMS without peak hold. Actual silence is -INF; missing data keeps the waiting screen and -- values. The meter uses 50 ms windows and reports at most twenty times per second; Bluetooth display uploads can be slower.
+
+SPEAKER keeps the full live scope and one-second peak hold. Its WAVE X16 scope magnifies only plotted preview points, not audio or system gain. SPEAKER measures generated output PCM; MIC and DUPLEX measure microphone PCM. Peaks, waveform samples and session statistics continue to be collected while the compact screen is visible.
 
 After completion or manual stop, SESSION retains the sample-weighted RMS and highest peak across all measured windows, including the final partial window. Its graph shows the last 20 reported window peaks. FRAMES counts metered audio frames; DROP counts frames the software meter could not retain. These counts are separate from PortAudio `xruns`, whose lost-frame count is unknown. A new test clears the previous result.
 
 No audio file is recorded. On shutdown, the host's `latest.png` stores only its last display image, which may include the level graph. Short physical checks confirmed repeated speaker tones, visible microphone levels and concurrent duplex operation on the tested setup. The computer preview remained responsive, while the device screen was noticeably slow; pending pictures were replaced rather than replayed later.
 
-In the instrumented duplex trial, experimental 2 ms packet pacing took 62–78 ms to hand image chunks to the socket, followed by 750–984 ms waiting for completion; total transfers were 922–1172 ms. The completion wait includes downstream buffering and device work. The general 10 ms pacing default remains unchanged. Audio and display workers share radio and device resources; the reported 26.375 ms native stream estimates do not measure acoustic-to-visible latency. See the [audio evidence and remaining lifecycle checks](validation.md#audio-lab--2026-11-03).
+Audio and display workers share radio and device resources. Native stream estimates and transfer ACKs do not measure acoustic-to-visible latency; detailed results and unverified lifecycle cases are in the [audio evidence](validation.md#audio-lab--2026-11-03).
+
+For the optional encoding/pacing profile used in comparison tests:
+
+```shell
+pixeldeck run audio --audio --audio-input INPUT_ID --audio-output OUTPUT_ID --send --codec auto --chunk-delay-ms 2
+```
+
+With microphone capture active and the same full Audio Lab image, two sends per codec in reversed order measured JPEG at 7,589 bytes and 906/922 ms, versus Zstandard at 1,319 bytes and 219/235 ms, all at 2 ms pacing. This is a small transaction-to-ACK comparison on one host/device; it is not a universal pacing recommendation or an acoustic-to-visible latency guarantee.
+
+Three compact MIC trials used 363–577-byte frames, with median transfers of 203–234.5 ms and median submission-to-ACK ages of 219–289.5 ms. One trial dropped 1,056 of 207,936 audio frames in the software meter; the other two reported none. Smaller payloads improved transfer timing, but the operator still found the display response insufficient. Display delay remains unresolved. See [validation](validation.md) for the conditions and distinction between transfer timing and end-to-end response.
 
 ## Device write lab
 
 ```shell
 python examples/device_lab.py
-python examples/device_lab.py --operation still --send --config private.json
+python examples/device_lab.py --operation still --codec auto
+python examples/device_lab.py --operation still --codec auto --send --config private.json
 ```
 
-The default is a dry-run plan for all three public writes: a generated still, a two-frame clip and brightness. It does not read device configuration or connect. Select `--operation still`, `clip`, `brightness` or `all`; only `--send` performs writes. `--period` sets the clip period in milliseconds (default 250), and `--level` sets brightness from 0 to 100 (default 50).
+The default is a dry-run plan for all three public writes: a generated still, a two-frame clip and brightness. It does not read device configuration or connect. Select `--operation still`, `clip`, `brightness` or `all`; only `--send` performs writes. `--codec` applies the same still-frame encoding policy used by the driver and reports the chosen format and size in the plan; clips remain JPEG. Dry runs use default quality 72, while live writes use the configured quality. `--period` sets the clip period in milliseconds (default 250), and `--level` sets brightness from 0 to 100 (default 50).
 
 Clip playback and brightness are experimental. The device's original brightness cannot be read, so the lab does not restore it automatically. An ACK alone does not confirm the physical effect. Avoid `--operation all --send` when you only intend to test a still frame.
 
@@ -163,6 +192,7 @@ Device settings:
 | endpoint | MiniToo | Unique speaker name or endpoint-ID substring |
 | chunk_delay_ms | 10 | Delay between outgoing 256-byte chunks |
 | quality | 72 | JPEG quality |
+| codec | jpeg | Live-frame encoding: jpeg, zstd or auto |
 | timeout | 5 | READY / final response timeout in seconds |
 | retries | 3 | Reconnect attempts after the first failure |
 
@@ -180,7 +210,7 @@ For this toolkit, the practical requirement is working profiles and drivers; a B
 
 - No device animation: check that the mode is LIVE and the command includes `--send`. Windows pairing alone does not upload frames. Then check the display status, configured address, paired name and phone ownership of the control connection.
 - Activate works only on the computer: `--send` enables display output; `--media` additionally enables the media-input session. Confirm Bluetooth Music mode, check the separate input status, then use `buttons` to measure the received actions. Input readiness alone does not prove one action per press.
-- Unexpected Play/Pause counts: the 250 ms guard merges short bursts, including deliberately fast taps. Use Button Lab to verify ordinary presses; the new backend/guard still needs physical acceptance testing.
+- Unexpected Play/Pause counts: the 250 ms guard merges short bursts, including deliberately fast taps. Button Lab reports accepted callbacks; exact one-action-per-press behavior remains unverified.
 - Input startup errors: inspect the selected backend in `doctor` and the input status. WinRT needs the matching optional dependencies; legacy has known intermittent native startup faults. Follow the separate [input test procedure](input-research.md#test-method).
 - Ambiguous audio endpoint: configure an exact endpoint-ID substring. Do not select an unrelated speaker just to get a match.
 - Original device menu appears: the current native device mode may consume the joystick. Up/down/center are not mapped as app input.

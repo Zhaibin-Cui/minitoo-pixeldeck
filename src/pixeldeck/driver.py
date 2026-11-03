@@ -5,6 +5,7 @@ import socket
 import threading
 import time
 from .config import DeviceConfig
+from .encoding import encode_frame
 from .protocol import Decoder, HEARTBEAT_PREFIX, brightness_packet, jpeg_clip, response, upload
 
 class MiniToo:
@@ -125,10 +126,18 @@ class MiniToo:
                     self._messages.clear()
 
     def show(self, image):
-        return self.show_clip([image], period_ms=1000)
+        start = time.monotonic()
+        codec, blob = encode_frame(image, quality=self.config.quality, codec=self.config.codec)
+        encode_ms = round((time.monotonic()-start)*1000, 2)
+        return self._show_upload(upload(blob), codec, encode_ms)
 
     def show_clip(self, images, period_ms=250):
-        job = upload(jpeg_clip(images, period_ms, self.config.quality))
+        start = time.monotonic()
+        blob = jpeg_clip(images, period_ms, self.config.quality)
+        encode_ms = round((time.monotonic()-start)*1000, 2)
+        return self._show_upload(upload(blob), "jpeg", encode_ms)
+
+    def _show_upload(self, job, codec, encode_ms):
         def transfer():
             start = time.monotonic()
             self._socket.sendall(job.announce)
@@ -150,6 +159,7 @@ class MiniToo:
                 if op == 0xBD and body[:2] == b"\x13\x01":
                     completed_at = time.monotonic()
                     return {"bytes": job.size, "chunks": len(job.chunks),
+                            "codec": codec, "encode_ms": encode_ms,
                             "retransmissions": sum(retries.values()),
                             "transfer_ms": round((completed_at-start)*1000, 2),
                             "announce_ms": round((ready_at-start)*1000, 2),

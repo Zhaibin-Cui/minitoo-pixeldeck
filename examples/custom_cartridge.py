@@ -8,7 +8,8 @@ class Hello(Demo):
     title='Hello cartridge'
     def __init__(self): self.count=0
     def handle(self,event,now):
-        if event['type']=='button': self.count+=1
+        if event.get('type') == 'button' and event.get('button') == 'activate':
+            self.count += 1
     def render(self,now):
         c=Canvas(); c.header('HELLO WORLD','08')
         c.text(80,56,f'{self.count:04}',CYAN,3,center=True)

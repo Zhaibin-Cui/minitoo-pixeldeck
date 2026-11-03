@@ -29,7 +29,18 @@ JPEG payload:
    | ... repeated frame entries
 ```
 
-Pixeldeck deliberately caps a blob at 16,000 bytes. One-frame streaming is the default. Multi-frame encoding is exposed for experiments, with no claim about persistent device storage or unlimited playback.
+Optional lossless RGB payload:
+
+```text
+25 | count:u8 | period_ms:u16be | rows:08 | columns:0A
+   | 00 00 | zstd_size:u16be | Zstandard bytes
+```
+
+The Zstandard stream contains consecutive 160 × 128 RGB888 frames in row order. `zstd_clip()` lazily imports the optional `display` dependency and uses compression level 9 by default, a maximum 128 KiB decoder window (`window_log=17`), an explicit content size, no dictionary and no checksum. It accepts at most four raw frames (245,760 bytes). The two zero bytes and length occupy the same four bytes as a big-endian uint32 while the payload stays within this toolkit's budget.
+
+Both formats use the same `0x8B` announce/chunk/READY/completion exchange. Pixeldeck caps each complete blob at 16,000 bytes. One-frame streaming is the default. `MiniToo.show()` uses `DeviceConfig.codec`, whose default is `jpeg`. `zstd` explicitly selects the optional lossless format; `auto` compares available encodings that fit the budget and chooses the smaller one, preferring JPEG on ties. This is local selection, not device capability negotiation. Encoding availability or size can select JPEG before sending; a transport failure never switches codecs.
+
+Native `show_clip()` and the `clip` CLI retain JPEG encoding. The low-level Zstandard clip encoder is available for experiments; its frame cap does not establish persistent storage or unlimited playback. Install its dependency with `python -m pip install -e ".[display]"`.
 
 Responses use outer opcode `04`, echoed operation, marker `55`, and response data. `8B / 01 / index:u16le` requests a chunk again. The driver allows three retries per requested chunk. `F7` heartbeats are drained while idle and are not interpreted as joystick events.
 
@@ -41,4 +52,4 @@ Responses use outer opcode `04`, echoed operation, marker `55`, and response dat
 
 The checksum of `08 00 8b 00 a1 2e 00 00` is `0162`; the included golden test computes the correct packet even where an upstream example shows a different checksum. Protocol notes can contain mistakes, so tests use arithmetic, framing invariants and observed replies together.
 
-Sources: [public protocol notes](https://github.com/alvinunreal/divoom-minitoo-osx/blob/main/PROTOCOL.md), [MiniToo findings](https://github.com/bugzmanov/divoom-minitoo/blob/main/FINDINGS.md). The implementation is new code organized around these fields, not a bundled copy of either project. See [validation](validation.md) for the boundary between simulation and hardware evidence.
+Sources: [public protocol notes](https://github.com/alvinunreal/divoom-minitoo-osx/blob/main/PROTOCOL.md), [MiniToo findings](https://github.com/bugzmanov/divoom-minitoo/blob/main/FINDINGS.md), and [lewilou22's RGB/Zstandard live format](https://github.com/lewilou22/divoom-minitoo-tools/blob/main/minitoo_protocol.py). See [validation](validation.md) for the boundary between simulation and hardware evidence.

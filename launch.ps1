@@ -9,6 +9,8 @@ param(
     [switch]$Audio,
     [ValidateRange(-1, 65535)][int]$AudioInput = -1,
     [ValidateRange(-1, 65535)][int]$AudioOutput = -1,
+    [ValidateSet('jpeg', 'zstd', 'auto')][string]$Codec,
+    [ValidateRange(0, 100)][Nullable[double]]$ChunkDelayMs = $null,
     [switch]$Check
 )
 $ErrorActionPreference = 'Stop'
@@ -65,6 +67,10 @@ try {
     if ($Audio) { $runArgs += '--audio' }
     if ($AudioInput -ge 0) { $runArgs += @('--audio-input', $AudioInput) }
     if ($AudioOutput -ge 0) { $runArgs += @('--audio-output', $AudioOutput) }
+    if ($Codec) { $runArgs += @('--codec', $Codec) }
+    if ($null -ne $ChunkDelayMs) {
+        $runArgs += @('--chunk-delay-ms', $ChunkDelayMs.ToString([Globalization.CultureInfo]::InvariantCulture))
+    }
     if ($Config) { $runArgs += @('--config', $Config) }
     & $Python @runArgs
     if ($LASTEXITCODE -ne 0) { throw 'Pixeldeck stopped with an error. See the message above.' }
