@@ -1,6 +1,7 @@
 """Audit and package an explicit public file set. Never uploads or pushes."""
 import argparse
 import hashlib
+from html.parser import HTMLParser
 import json
 from pathlib import Path
 import re
@@ -8,14 +9,37 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 DIRECTORIES={'src','tests','docs','examples','tools','.github'}
-FILES={'README.md','LICENSE','CONTRIBUTING.md','CHANGELOG.md','pyproject.toml','run.py','launch.ps1','.gitignore','.gitattributes'}
+FILES={'README.md','LICENSE','CONTRIBUTING.md','CHANGELOG.md','pyproject.toml','run.py','launch.ps1','.gitignore','.gitattributes','docs/.nojekyll'}
 BINARY={'.png','.gif','.wav'}
-TEXT={'.py','.md','.toml','.json','.cs','.ps1','.yml','.yaml','.txt'}
+TEXT={'.py','.md','.toml','.json','.cs','.ps1','.yml','.yaml','.txt','.html','.css','.js'}
 PATTERNS={
     'user path':re.compile(r'(?:[A-Z]:[\\/](?:Users|Documents and Settings)[\\/]|/(?:Users|home)/[a-z0-9_-]+/)',re.I),
     'device address':re.compile(r'\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b',re.I),
     'access token':re.compile(r'\b(?:gh[pousr]_[A-Za-z0-9]{30,}|sk-[A-Za-z0-9]{30,}|AKIA[A-Z0-9]{16})\b'),
 }
+
+
+class _HTMLLinks(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.targets=[]
+
+    def handle_starttag(self,tag,attrs):
+        for key,value in attrs:
+            if value and key in {'src','href'}:
+                self.targets.append(value)
+            elif value and key=='srcset':
+                self.targets.extend(part.strip().split()[0] for part in value.split(',') if part.strip())
+
+
+def local_link_targets(path,content):
+    if path.suffix=='.md':
+        for pair in re.findall(r'!?\[[^\]]*\]\(([^)]+)\)|src="([^"]+)"',content):
+            yield pair[0] or pair[1]
+    elif path.suffix=='.html':
+        parser=_HTMLLinks()
+        parser.feed(content)
+        yield from parser.targets
 
 def selected_files():
     for path in sorted(ROOT.rglob('*')):
@@ -46,14 +70,12 @@ def audit(files,terms=()):
         for term in terms:
             if re.search(r'(?<![A-Za-z0-9])'+re.escape(term)+r'(?![A-Za-z0-9])',name+'\n'+content,re.I):
                 errors.append(name+': excluded term')
-        if path.suffix=='.md':
-            links=re.findall(r'!?\[[^\]]*\]\(([^)]+)\)|src="([^"]+)"',content)
-            for pair in links:
-                target=(pair[0] or pair[1]).split('#')[0]
-                if not target or '://' in target or target.startswith('mailto:'): continue
-                resolved=(path.parent/target).resolve()
-                if not resolved.is_relative_to(ROOT) or resolved.relative_to(ROOT).as_posix() not in included:
-                    errors.append(name+': missing public link '+target)
+        for target in local_link_targets(path,content):
+            target=target.split('#')[0].split('?')[0]
+            if not target or '://' in target or target.startswith(('mailto:','data:')): continue
+            resolved=(path.parent/target).resolve()
+            if not resolved.is_relative_to(ROOT) or resolved.relative_to(ROOT).as_posix() not in included:
+                errors.append(name+': missing public link '+target)
     if errors: raise ValueError('\n'.join(sorted(set(errors))))
 
 def release(files):

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#081311">
+  <meta name="description" content="18 pixel demos for the Divoom MiniToo: system dashboards, timers, a CRT companion and audio tools. An open-source Python toolkit with a reusable Bluetooth driver.">
+  <title>MiniToo Pixeldeck — your desk, in pixels</title>
+  <link rel="canonical" href="https://zhaibin-cui.github.io/minitoo-pixeldeck/">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23081311' d='M0 0h32v32H0z'/%3E%3Cpath fill='%239affb3' d='M4 4h24v18H4zM12 24h8v4h6v2H6v-2h6z'/%3E%3Cpath fill='%23081311' d='M7 7h18v12H7z'/%3E%3Cpath fill='%239affb3' d='M10 10h3v3h-3zm9 0h3v3h-3zm-6 5h6v2h-6z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="#" aria-label="MiniToo Pixeldeck home">
+        <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true"><path fill="currentColor" d="M3 3h26v20H3zM12 25h8v3h6v3H6v-3h6z"/><path fill="#081311" d="M6 6h20v14H6z"/><path fill="currentColor" d="M10 10h3v3h-3zm9 0h3v3h-3zm-6 6h6v2h-6z"/></svg>
+        <span>PIXELDECK<span class="brand-sub">MINITOO TOOLKIT</span></span>
+      </a>
+      <nav class="header-nav" aria-label="Main navigation">
+        <a class="nav-gallery" href="#cartridges">Demos</a>
+        <a href="#setup">Get started</a>
+        <a class="repo-link" href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="showcase section-width" id="showcase" aria-label="Featured pixel demos">
+      <div class="showcase-grid">
+        <div class="stage-column">
+          <div class="stage-topline"><span>160 × 128 / REAL PROGRAM RENDERS</span><button id="motion-toggle" class="text-button" type="button" aria-pressed="false" hidden>Pause previews</button></div>
+          <figure class="screen-shell">
+            <div class="screen-bezel"><img id="featured-image" src="assets/dashboard.png" width="640" height="512" alt="Dashboard grid with CPU, memory, network, storage, power and exit tiles" fetchpriority="high"></div>
+            <figcaption><span class="status-light" aria-hidden="true"></span>OFFLINE PREVIEW <span class="caption-separator">/</span> SYNTHETIC DATA</figcaption>
+          </figure>
+          <div class="featured-picker" id="featured-picker" aria-label="Choose a featured preview"></div>
+        </div>
+        <div class="showcase-copy">
+          <p class="eyebrow">OPEN SOURCE · PYTHON · V0.7.0</p>
+          <h1>Your desk,<br>in <span>pixels.</span></h1>
+          <p class="intro">Give a MiniToo something useful to do. Or a small world to live in.</p>
+          <div class="featured-description" aria-live="polite" aria-atomic="true">
+            <p class="demo-category" id="featured-category">01 / SYSTEM MONITORS</p>
+            <h2 id="featured-title" tabindex="-1">Dashboard</h2>
+            <p id="featured-description">CPU, memory, network, storage and power in one view. Open any metric for a closer look.</p>
+            <p class="demo-action"><span>IN THE APP</span><span id="featured-action">Left / Right selects. Activate opens a detail; Activate again returns.</span></p>
+          </div>
+          <div class="command-line"><code id="featured-command">.\.venv\Scripts\pixeldeck.exe run dashboard</code><button class="copy-button" data-copy="featured-command" type="button" aria-label="Copy dashboard preview command">Copy</button></div>
+          <div class="hero-links"><a class="button primary" href="#setup">Run it on your computer <span aria-hidden="true">↓</span></a><a class="inline-link" href="#cartridges">All 18 demos <span aria-hidden="true">↘</span></a></div>
+          <p class="stage-note">This page is a gallery. Its controls select previews; they do not connect to your device.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="forest-break" aria-hidden="true"><img src="assets/forest-banner.png" width="1080" height="144" alt="" loading="lazy"></div>
+
+    <section class="cartridge-section section-width" id="cartridges" aria-labelledby="cartridge-heading">
+      <div class="section-heading"><div><p class="eyebrow">THE CARTRIDGE SHELF</p><h2 id="cartridge-heading">Useful tools.<br>Small escapes.</h2></div><p>Real renders from the same toolkit.<br>Pick a cartridge to see it up close.</p></div>
+      <div class="shelf-toolbar"><div class="filters" id="filters" role="group" aria-label="Filter cartridges"></div><p id="gallery-count" class="gallery-count" role="status">18 cartridges</p></div>
+      <div class="cartridge-grid" id="cartridge-grid"></div>
+      <noscript><p>JavaScript enables preview selection. You can still <a href="assets/gallery.png">view all 18 cartridges</a> or read the <a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck#readme">README</a>.</p></noscript>
+    </section>
+
+    <div class="forest-break slim" aria-hidden="true"><img src="assets/forest-divider.png" width="1080" height="88" alt="" loading="lazy"></div>
+
+    <section class="setup-section section-width" id="setup" aria-labelledby="setup-heading">
+      <div class="section-heading"><div><p class="eyebrow">POWER ON</p><h2 id="setup-heading">Start on your desk.<br>Then send the pixels.</h2></div><p>The computer runs the software.<br>The MiniToo keeps its original firmware.</p></div>
+      <div class="setup-layout">
+        <aside class="setup-sidebar">
+          <p class="setup-kicker">WINDOWS / PYTHON 3.11+</p>
+          <h3>A checkout.<br>A virtual environment.<br>A preview.</h3>
+          <p>The full install includes optional system metrics, Windows input, audio and lossless display encoding.</p>
+          <p class="muted">For a minimal cross-platform preview, Python 3.10+ and the base package are enough. The desktop window also needs Tkinter.</p>
+          <a class="inline-link" href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/releases/tag/v0.7.0">Download v0.7.0 <span aria-hidden="true">↗</span></a>
+          <a class="inline-link" href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/blob/main/docs/quickstart.zh-CN.md">中文快速上手 <span aria-hidden="true">↗</span></a>
+        </aside>
+        <div class="setup-steps">
+          <article class="setup-step"><div class="step-heading"><span class="step-number">01</span><div><h3>Preview first</h3><p>No device required.</p></div></div>
+            <div class="code-panel"><div class="code-toolbar"><span>POWERSHELL</span><button class="copy-button" data-copy="preview-command" type="button" aria-label="Copy preview installation commands">Copy</button></div><pre><code id="preview-command">git clone https://github.com/Zhaibin-Cui/minitoo-pixeldeck.git
+cd minitoo-pixeldeck
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[telemetry,windows-input,audio,display]"
+.\.venv\Scripts\pixeldeck.exe run dashboard</code></pre></div>
+            <p>Use <kbd>←</kbd> <kbd>→</kbd> to select, <kbd>Enter</kbd> to activate, <kbd>Esc</kbd> to go back and <kbd>Ctrl</kbd> + <kbd>Q</kbd> to exit.</p>
+          </article>
+          <article class="setup-step"><div class="step-heading"><span class="step-number">02</span><div><h3>Put it on a MiniToo</h3><p>Optional · paired Windows Bluetooth device</p></div></div>
+            <p>Release the phone's display-control connection. Replace the example address with your paired device address.</p>
+            <div class="code-panel"><div class="code-toolbar"><span>POWERSHELL</span><button class="copy-button" data-copy="live-command" type="button" aria-label="Copy live display commands">Copy</button></div><pre><code id="live-command">.\.venv\Scripts\pixeldeck.exe configure --address AA:BB:CC:DD:EE:FF --endpoint MiniToo
+.\.venv\Scripts\pixeldeck.exe run dashboard --send</code></pre></div>
+            <p><code>--send</code> enables display output. Add <code>--media</code> after <a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/blob/main/docs/usage.md#input-backends">input setup</a> for supported media buttons. JPEG and 10 ms packet pacing remain the defaults.</p>
+          </article>
+          <a class="button secondary" href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/blob/main/docs/usage.md">Full usage &amp; configuration <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="architecture-section" id="architecture" aria-labelledby="architecture-heading"><div class="section-width">
+      <div class="section-heading"><div><p class="eyebrow">UNDER THE PIXELS</p><h2 id="architecture-heading">A toolkit you can<br>take apart.</h2></div><p>Protocol, transport and renderers stay separate.<br>Your next cartridge can start with one image.</p></div>
+      <div class="architecture-flow" aria-label="Input events feed cartridge state, which renders a latest-frame mailbox and sends pixels through the driver">
+        <div><span>01 / RECEIVE</span><h3>Events</h3><p>Media callbacks, local JSONL and host measurements.</p></div><span class="flow-arrow" aria-hidden="true">→</span>
+        <div><span>02 / RENDER</span><h3>Cartridge</h3><p>State, RGB pixels and an explicit next deadline.</p></div><span class="flow-arrow" aria-hidden="true">→</span>
+        <div><span>03 / REPLACE</span><h3>Latest frame</h3><p>One pending image. New state replaces stale state.</p></div><span class="flow-arrow" aria-hidden="true">→</span>
+        <div><span>04 / SEND</span><h3>Driver</h3><p>Classic RFCOMM, bounded payloads, ACKs and retries.</p></div>
+      </div>
+      <div class="architecture-notes"><p><strong>Static screens sleep.</strong> Identical frames are not sent again. Animations request deadlines; input arrives through callbacks.</p><p><strong>Workers own their I/O.</strong> Rendering does not wait for Bluetooth. Audio and display still share the host, radio and device.</p><p><strong>Closing releases the connection.</strong> The last frame remains on the MiniToo. No firmware replacement or gallery-save command is part of ordinary demos.</p></div>
+      <div class="document-links"><a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/blob/main/docs/architecture.md">Architecture <span aria-hidden="true">↗</span></a><a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/blob/main/docs/protocol.md">Protocol notebook <span aria-hidden="true">↗</span></a><a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/blob/main/docs/extending.md">Build a cartridge <span aria-hidden="true">↗</span></a><a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/blob/main/docs/capabilities.md">Capability map <span aria-hidden="true">↗</span></a></div>
+    </div></section>
+
+    <section class="boundaries section-width" aria-labelledby="boundaries-heading"><div><p class="eyebrow">WHAT TO EXPECT</p><h2 id="boundaries-heading">Small screen.<br>Real constraints.</h2></div><div class="boundary-copy"><p>Short Windows trials have demonstrated display output, media callbacks, speaker tones, microphone levels and duplex audio. Device display delay remains noticeable, even with smaller lossless frames.</p><p>Media input exposes Previous, Next and Play/Pause—not arbitrary joystick events. Exact one-action-per-press behavior, overnight endurance and phone-music coexistence remain unverified.</p><p>The gallery uses synthetic data and offline animation. It is not a promise of device frame rate.</p><a class="inline-link" href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/blob/main/docs/validation.md">Read the measurements and limits <span aria-hidden="true">↗</span></a></div></section>
+  </main>
+
+  <footer class="site-footer"><img class="footer-forest" src="assets/forest-divider.png" width="1080" height="88" alt="" loading="lazy"><div class="footer-inner section-width"><div><a class="footer-brand" href="#">MINITOO PIXELDECK</a><p>Independent, unofficial, open source.</p></div><div class="footer-links"><a href="https://github.com/Zhaibin-Cui">Zhaibin-Cui</a><a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/blob/main/LICENSE">MIT license</a><a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/issues">Issues</a><a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck">Source code ↗</a></div></div></footer>
+  <div id="copy-status" class="sr-only" role="status" aria-live="polite"></div>
+</body>
+</html>

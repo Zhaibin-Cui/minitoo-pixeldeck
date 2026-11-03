@@ -1,6 +1,6 @@
 # README design notes
 
-The README places a miniature console in a pixel forest: leaves, hanging vines, floating ground and warm fireflies around a clear technical workspace. It starts with architecture and setup, followed by a gallery of runnable cartridges.
+The README places a miniature console in a pixel forest: leaves, hanging vines, floating ground and warm fireflies around a clear technical workspace. It opens with runnable demo previews, followed by architecture, setup and extension guides. The default-dark documentation homepage uses an enlarged demo stage and the same original forest artwork.
 
 ## Layout choices
 

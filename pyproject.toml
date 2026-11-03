@@ -15,7 +15,7 @@ keywords = ["minitoo", "pixel-art", "bluetooth", "reverse-engineering"]
 
 [project.urls]
 Repository = "https://github.com/Zhaibin-Cui/minitoo-pixeldeck"
-Documentation = "https://github.com/Zhaibin-Cui/minitoo-pixeldeck#readme"
+Documentation = "https://zhaibin-cui.github.io/minitoo-pixeldeck/"
 Issues = "https://github.com/Zhaibin-Cui/minitoo-pixeldeck/issues"
 
 [project.optional-dependencies]

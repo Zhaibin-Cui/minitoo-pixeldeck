@@ -12,6 +12,8 @@
 Protocol tools · independent streams · eighteen original pixel cartridges<br>
 Python 3.10+ core · Python 3.11+ WinRT input · MIT · v0.7.0</p>
 
+<p align="center"><a href="https://zhaibin-cui.github.io/minitoo-pixeldeck/"><strong>Explore the dark demo gallery →</strong></a></p>
+
 MiniToo Pixeldeck is an independent, unofficial reverse-engineering toolkit for the **Divoom MiniToo**. Send images, build interactive pixel scenes, inspect the protocol, or use the display as a miniature system monitor. The software runs on your computer and leaves the device firmware unchanged. Importing the package never connects a device.
 
 ```text
@@ -23,11 +25,127 @@ PIXELDECK / DESK INSTRUMENTS
   FIRST BOOT   preview / no device required
 ```
 
-| 01 / ENGINE ROOM | 02 / POWER ON | 03 / CARTRIDGE SHELF |
+| 01 / CARTRIDGE SHELF | 02 / ENGINE ROOM | 03 / POWER ON |
 |:--|:--|:--|
-| [Architecture](#architecture) · [Protocol](docs/protocol.md) | [Use it](#use-it) · [中文上手](docs/quickstart.zh-CN.md) | [Live gallery](#insert-a-cartridge) · [Make your own](docs/extending.md) |
+| [Live gallery](#insert-a-cartridge) · [Make your own](docs/extending.md) | [Architecture](#architecture) · [Protocol](docs/protocol.md) | [Use it](#use-it) · [中文上手](docs/quickstart.zh-CN.md) |
 
 Watch network traffic, time a focus session, or follow a build from the desk. Each cartridge uses the same rendering and event APIs.
+
+<p align="center"><img src="docs/assets/forest-divider.png" alt="" width="1080"></p>
+
+## Insert a cartridge
+
+These are **real program renders** with synthetic metric and audio data. Gallery GIFs are exported offline; their frame rate does not establish device speed. Device animation is limited by actual Bluetooth throughput. The device illustration is original stylized artwork.
+
+| What belongs on your desk? | Start here |
+|---|---|
+| A small system instrument | `dashboard` · `pulse` · `network` · `storage` · `power` |
+| Time with a physical presence | `clock` · `stopwatch` · `pomodoro` · `focus` · `breathe` |
+| A glanceable event signal | `build` · `signal` |
+| Animated pixel scenes | `buddy` · `rain` · `orbit` |
+| Input and transport diagnostics | `buttons` · `link` |
+| Speaker and microphone diagnostics | `audio` |
+
+Every preview is reproducible: [cartridge registry](src/pixeldeck/demos/__init__.py) → [export code](src/pixeldeck/export.py) → [gallery builder](tools/build_gallery.py). [Full contact sheet →](docs/assets/gallery.png)
+
+### Dashboard
+
+<img src="docs/assets/dashboard.gif" alt="Dashboard grid, metric selection and enlarged CPU detail" width="720">
+
+CPU, memory, network, storage and power share one overview, with a sixth **EXIT** tile. Left / Right moves the selection; Activate opens a metric. In detail view, Left / Right changes metrics and Activate or desktop Back / Esc returns to the grid. Received MiniToo Play/Pause callbacks map to Activate; the physical-input limitations above still apply. Desktop Back / Esc from the grid returns to Bit Buddy.
+
+```shell
+pixeldeck run dashboard --send --media
+```
+
+The EXIT tile, desktop Exit button or Ctrl+Q closes Pixeldeck and releases its connections. The device keeps the last displayed frame; exit does not restore its native menu. The demo also works in preview mode without either flag.
+
+### Link Lab
+
+<img src="docs/assets/link.gif" alt="Link Lab ACK, input and numbered test-pattern panels" width="720">
+
+Inspect the last transfer, input counters and a numbered test pattern. Left / Right selects LINK, INPUT or PATTERN. Activate takes a snapshot, opens detail and advances the pattern; desktop Back returns to the overview, then Bit Buddy.
+
+```shell
+pixeldeck run link --send --media
+```
+
+ACKs and input observations accumulate without triggering a redraw or another upload. Activate refreshes the display, so the current frame's ACK appears in a later snapshot. These are host events and transfer timings, not raw key identities or visible-pixel latency.
+
+### Audio Lab
+
+<img src="docs/assets/audio.gif" alt="Synthetic compact microphone RMS meter followed by retained session statistics" width="720">
+
+SPEAKER repeats a short test tone and shows the full scope. MIC displays instantaneous RMS on a compact meter; DUPLEX adds an independent output tone. There is no microphone-to-speaker loopback or audio-file recording. Audio stays off until explicitly enabled and activated.
+
+```shell
+pixeldeck audio-devices --match MiniToo
+pixeldeck run audio --audio --audio-input INPUT_ID --audio-output OUTPUT_ID
+```
+
+Replace the IDs with endpoints reported by `audio-devices`. Left / Right chooses a mode while idle; Activate starts its five-second test. Activate or desktop Back stops an active test, and leaving the page stops audio. The final SESSION view retains measured RMS, peak and frame coverage. Add `--send` to display it on the MiniToo. Speaker, microphone and duplex operation have been checked on one Windows setup. [Audio setup →](docs/usage.md#audio-lab) · [Observed results →](docs/validation.md#audio-lab--2026-11-03)
+
+For pixel interfaces, the optional lossless encoder sends substantially fewer bytes. With capture active, a controlled two-send comparison reduced the same source frame from 7,589 to 1,319 bytes and upload acknowledgment time from about 0.91 s to 0.23 s. This measures transfers on one device, not sound-to-screen latency. JPEG remains the default; `auto` chooses the smaller available encoding before transmission.
+
+```shell
+python -m pip install -e ".[display]"
+pixeldeck run audio --audio --audio-input INPUT_ID --send --codec auto --chunk-delay-ms 2
+```
+
+In this input-only example, choose **MIC** before Activate. The 2 ms pacing setting was tested on one host; it is an override, not a compatibility guarantee. Smaller frames reduce transfer cost, but noticeable display delay remains a limitation. [Encoding and timing evidence →](docs/validation.md#lossless-display--2026-11-03)
+
+### System monitors and desk tools
+
+Individual cartridges for monitoring, timing and pushed events. [View the utility collection together →](docs/assets/useful-demos.png)
+
+| Net Scope | Volume Vault | Power Cell |
+|:--:|:--:|:--:|
+| ![Live network receive and transmit rates](docs/assets/network.gif) | ![Storage free-space meters](docs/assets/storage.gif) | ![Battery and external power display](docs/assets/power.gif) |
+| Aggregate receive and transmit rates.<br>Activate freezes RX / TX. | Free space at a glance.<br>Activate selects another volume. | Battery level and power details.<br>Shows NO BATTERY when none is present. |
+| `pixeldeck run network` | `pixeldeck run storage` | `pixeldeck run power` |
+
+| Neon Clock | Stopwatch | Pomodoro |
+|:--:|:--:|:--:|
+| ![Local and UTC pixel clock](docs/assets/clock.gif) | ![Interactive elapsed-time stopwatch](docs/assets/stopwatch.gif) | ![Focus and break interval timer](docs/assets/pomodoro.gif) |
+| Local time and UTC.<br>Activate switches the time basis. | Elapsed time for tasks and experiments.<br>Activate starts / pauses; desktop R resets. | 25 minutes of focus, 5 minutes of rest.<br>Activate starts / pauses; desktop R resets. |
+| `pixeldeck run clock` | `pixeldeck run stopwatch` | `pixeldeck run pomodoro` |
+
+| Breath Loop | Build Beacon |
+|:--:|:--:|
+| ![Four-phase animated pacing loop](docs/assets/breathe.gif) | ![Pushed build progress and result](docs/assets/build.gif) |
+| A 4–4–4–4 pacing loop.<br>Activate starts / pauses; desktop R resets. | Build progress and results.<br>JSONL pushes progress; activate changes the view. |
+| `pixeldeck run breathe` | `pixeldeck run build --stdin` |
+
+<details>
+<summary><strong>Three ways to use the desk tools</strong></summary>
+
+**During a download:** open Net Scope, freeze a sample with Activate, then switch to Volume Vault to check capacity. Neither cartridge uploads host measurements or actively probes the network.
+
+**During focused work:** start Pomodoro, switch away while it keeps elapsed time, and return to the current phase. Use Stopwatch for an open-ended task. Desktop R starts those timers over.
+
+**During a build:** let your build script push `running`, progress and a final `passed` or `failed` event into Build Beacon. The screen reports what the producer sends; it never launches or cancels the build.
+
+</details>
+
+### Animated cartridges and input diagnostics
+
+| Pulse | Bit Buddy | Neon Rain |
+|:--:|:--:|:--:|
+| ![CPU and memory waveform](docs/assets/pulse.gif) | ![Animated CRT companion](docs/assets/buddy.gif) | ![Cyan and magenta code rain](docs/assets/rain.gif) |
+| CPU waveform + memory bars.<br>Activate to freeze. | An animated CRT companion.<br>Activate to send a heart. | Falling cyan and magenta characters.<br>Activate to suspend the rain. |
+| `pixeldeck run pulse` | `pixeldeck run buddy` | `pixeldeck run rain` |
+
+| Orbital | Focus Foundry | Button Lab |
+|:--:|:--:|:--:|
+| ![Planet and satellite](docs/assets/orbit.gif) | ![Pixel hourglass timer](docs/assets/focus.gif) | ![Static single-press counter](docs/assets/buttons.gif) |
+| A ringed planet and orbiting satellite.<br>Activate to pause. | A one-minute pixel hourglass.<br>Activate to start / pause. | A counter for each activation.<br>A static input diagnostic. |
+| `pixeldeck run orbit` | `pixeldeck run focus` | `pixeldeck run buttons` |
+
+### Signal Inbox
+
+<img src="docs/assets/signal.gif" alt="Event-driven notification inbox" width="320">
+
+Build events, home automation, chat notices, creative experiments: bring your own producer. Signal keeps the last eight notices and updates only when an event arrives. Activate clears the inbox. It is a generic local interface with no service integration or embedded credentials.
 
 ## Architecture
 
@@ -174,122 +292,6 @@ Run `pixeldeck run build --stdin` and let your own producer report state changes
 
 <p align="center"><img src="docs/assets/forest-divider.png" alt="" width="1080"></p>
 
-## Insert a cartridge
-
-These are **real program renders** with synthetic metric and audio data. Gallery GIFs are exported offline; their frame rate does not establish device speed. Device animation is limited by actual Bluetooth throughput. The device illustration is original stylized artwork.
-
-| What belongs on your desk? | Start here |
-|---|---|
-| A small system instrument | `dashboard` · `pulse` · `network` · `storage` · `power` |
-| Time with a physical presence | `clock` · `stopwatch` · `pomodoro` · `focus` · `breathe` |
-| A glanceable event signal | `build` · `signal` |
-| Animated pixel scenes | `buddy` · `rain` · `orbit` |
-| Input and transport diagnostics | `buttons` · `link` |
-| Speaker and microphone diagnostics | `audio` |
-
-Every preview is reproducible: [cartridge registry](src/pixeldeck/demos/__init__.py) → [export code](src/pixeldeck/export.py) → [gallery builder](tools/build_gallery.py). [Full contact sheet →](docs/assets/gallery.png)
-
-### Dashboard
-
-<img src="docs/assets/dashboard.gif" alt="Dashboard grid, metric selection and enlarged CPU detail" width="480">
-
-CPU, memory, network, storage and power share one overview, with a sixth **EXIT** tile. Left / Right moves the selection; Activate opens a metric. In detail view, Left / Right changes metrics and Activate or desktop Back / Esc returns to the grid. Received MiniToo Play/Pause callbacks map to Activate; the physical-input limitations above still apply. Desktop Back / Esc from the grid returns to Bit Buddy.
-
-```shell
-pixeldeck run dashboard --send --media
-```
-
-The EXIT tile, desktop Exit button or Ctrl+Q closes Pixeldeck and releases its connections. The device keeps the last displayed frame; exit does not restore its native menu. The demo also works in preview mode without either flag.
-
-### Link Lab
-
-<img src="docs/assets/link.gif" alt="Link Lab ACK, input and numbered test-pattern panels" width="480">
-
-Inspect the last transfer, input counters and a numbered test pattern. Left / Right selects LINK, INPUT or PATTERN. Activate takes a snapshot, opens detail and advances the pattern; desktop Back returns to the overview, then Bit Buddy.
-
-```shell
-pixeldeck run link --send --media
-```
-
-ACKs and input observations accumulate without triggering a redraw or another upload. Activate refreshes the display, so the current frame's ACK appears in a later snapshot. These are host events and transfer timings, not raw key identities or visible-pixel latency.
-
-### Audio Lab
-
-<img src="docs/assets/audio.gif" alt="Synthetic compact microphone RMS meter followed by retained session statistics" width="480">
-
-SPEAKER repeats a short test tone and shows the full scope. MIC displays instantaneous RMS on a compact meter; DUPLEX adds an independent output tone. There is no microphone-to-speaker loopback or audio-file recording. Audio stays off until explicitly enabled and activated.
-
-```shell
-pixeldeck audio-devices --match MiniToo
-pixeldeck run audio --audio --audio-input INPUT_ID --audio-output OUTPUT_ID
-```
-
-Replace the IDs with endpoints reported by `audio-devices`. Left / Right chooses a mode while idle; Activate starts its five-second test. Activate or desktop Back stops an active test, and leaving the page stops audio. The final SESSION view retains measured RMS, peak and frame coverage. Add `--send` to display it on the MiniToo. Speaker, microphone and duplex operation have been checked on one Windows setup. [Audio setup →](docs/usage.md#audio-lab) · [Observed results →](docs/validation.md#audio-lab--2026-11-03)
-
-For pixel interfaces, the optional lossless encoder sends substantially fewer bytes. With capture active, a controlled two-send comparison reduced the same source frame from 7,589 to 1,319 bytes and upload acknowledgment time from about 0.91 s to 0.23 s. This measures transfers on one device, not sound-to-screen latency. JPEG remains the default; `auto` chooses the smaller available encoding before transmission.
-
-```shell
-python -m pip install -e ".[display]"
-pixeldeck run audio --audio --audio-input INPUT_ID --send --codec auto --chunk-delay-ms 2
-```
-
-In this input-only example, choose **MIC** before Activate. The 2 ms pacing setting was tested on one host; it is an override, not a compatibility guarantee. Smaller frames reduce transfer cost, but noticeable display delay remains a limitation. [Encoding and timing evidence →](docs/validation.md#lossless-display--2026-11-03)
-
-### System monitors and desk tools
-
-Individual cartridges for monitoring, timing and pushed events. [View the utility collection together →](docs/assets/useful-demos.png)
-
-| Net Scope | Volume Vault | Power Cell |
-|:--:|:--:|:--:|
-| ![Live network receive and transmit rates](docs/assets/network.gif) | ![Storage free-space meters](docs/assets/storage.gif) | ![Battery and external power display](docs/assets/power.gif) |
-| Aggregate receive and transmit rates.<br>Activate freezes RX / TX. | Free space at a glance.<br>Activate selects another volume. | Battery level and power details.<br>Shows NO BATTERY when none is present. |
-| `pixeldeck run network` | `pixeldeck run storage` | `pixeldeck run power` |
-
-| Neon Clock | Stopwatch | Pomodoro |
-|:--:|:--:|:--:|
-| ![Local and UTC pixel clock](docs/assets/clock.gif) | ![Interactive elapsed-time stopwatch](docs/assets/stopwatch.gif) | ![Focus and break interval timer](docs/assets/pomodoro.gif) |
-| Local time and UTC.<br>Activate switches the time basis. | Elapsed time for tasks and experiments.<br>Activate starts / pauses; desktop R resets. | 25 minutes of focus, 5 minutes of rest.<br>Activate starts / pauses; desktop R resets. |
-| `pixeldeck run clock` | `pixeldeck run stopwatch` | `pixeldeck run pomodoro` |
-
-| Breath Loop | Build Beacon |
-|:--:|:--:|
-| ![Four-phase animated pacing loop](docs/assets/breathe.gif) | ![Pushed build progress and result](docs/assets/build.gif) |
-| A 4–4–4–4 pacing loop.<br>Activate starts / pauses; desktop R resets. | Build progress and results.<br>JSONL pushes progress; activate changes the view. |
-| `pixeldeck run breathe` | `pixeldeck run build --stdin` |
-
-<details>
-<summary><strong>Three ways to use the desk tools</strong></summary>
-
-**During a download:** open Net Scope, freeze a sample with Activate, then switch to Volume Vault to check capacity. Neither cartridge uploads host measurements or actively probes the network.
-
-**During focused work:** start Pomodoro, switch away while it keeps elapsed time, and return to the current phase. Use Stopwatch for an open-ended task. Desktop R starts those timers over.
-
-**During a build:** let your build script push `running`, progress and a final `passed` or `failed` event into Build Beacon. The screen reports what the producer sends; it never launches or cancels the build.
-
-</details>
-
-### Animated cartridges and input diagnostics
-
-| Pulse | Bit Buddy | Neon Rain |
-|:--:|:--:|:--:|
-| ![CPU and memory waveform](docs/assets/pulse.gif) | ![Animated CRT companion](docs/assets/buddy.gif) | ![Cyan and magenta code rain](docs/assets/rain.gif) |
-| CPU waveform + memory bars.<br>Activate to freeze. | An animated CRT companion.<br>Activate to send a heart. | Falling cyan and magenta characters.<br>Activate to suspend the rain. |
-| `pixeldeck run pulse` | `pixeldeck run buddy` | `pixeldeck run rain` |
-
-| Orbital | Focus Foundry | Button Lab |
-|:--:|:--:|:--:|
-| ![Planet and satellite](docs/assets/orbit.gif) | ![Pixel hourglass timer](docs/assets/focus.gif) | ![Static single-press counter](docs/assets/buttons.gif) |
-| A ringed planet and orbiting satellite.<br>Activate to pause. | A one-minute pixel hourglass.<br>Activate to start / pause. | A counter for each activation.<br>A static input diagnostic. |
-| `pixeldeck run orbit` | `pixeldeck run focus` | `pixeldeck run buttons` |
-
-### Signal Inbox
-
-<img src="docs/assets/signal.gif" alt="Event-driven notification inbox" width="320">
-
-Build events, home automation, chat notices, creative experiments: bring your own producer. Signal keeps the last eight notices and updates only when an event arrives. Activate clears the inbox. It is a generic local interface with no service integration or embedded credentials.
-
-<p align="center"><img src="docs/assets/forest-divider.png" alt="" width="1080"></p>
-
 ## Write a cartridge
 
 A cartridge renders one `160 × 128` RGB image. It knows nothing about Bluetooth:
@@ -356,6 +358,8 @@ The release tool uses a public file allowlist, checks relative Markdown links, s
 <summary><strong>Rebuild the visual documentation</strong></summary>
 
 `tools/build_gallery.py` generates the animated forest hero, woodland dividers, control strip, I/O map, runtime diagram, contact sheets and every cartridge PNG/GIF from source. The monitor fixtures are synthetic and carry no host identity. No image-generation service, paid font or downloaded sprite pack is needed to reproduce the gallery.
+
+The default-dark homepage lives in `docs/index.html` with its CSS and JavaScript in `docs/assets/`. Preview it with `python -m http.server 8766 --directory docs`, then open `http://localhost:8766/`. GitHub Pages serves `main:/docs`; no frontend build or external runtime is required.
 
 </details>
 

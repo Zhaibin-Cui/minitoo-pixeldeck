@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add a default-dark documentation homepage with an enlarged demo stage, cartridge filters and keyboard controls.
+- Move the README gallery before setup and architecture, and enlarge the featured previews.
+- Include static page sources and their local asset links in the public release audit.
+
 ## 0.7.0
 
 - Add optional lossless RGB/Zstandard live frames and per-frame `auto` encoding selection; preserve JPEG defaults and native JPEG clips.
