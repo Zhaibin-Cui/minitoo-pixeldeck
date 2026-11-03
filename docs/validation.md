@@ -117,4 +117,4 @@ python examples/protocol_lab.py
 python tools/build_gallery.py
 ```
 
-Tests inject fake sockets and never connect Bluetooth. The Windows GUI integration uses a hidden window and local IPC. Run it in a normal desktop session; restricted Windows sandboxes can deny access to Python temporary directories. CI configuration is included, but no hosted CI run is claimed before publication.
+Tests inject fake sockets and never connect Bluetooth. The Windows GUI integration uses a hidden window and local IPC. Run it in a normal desktop session; restricted Windows sandboxes can deny access to Python temporary directories. The [first hosted run](https://github.com/Zhaibin-Cui/minitoo-pixeldeck/actions/runs/41648029498) passed on Windows and Ubuntu with Python 3.11 and 3.12, including the offline suite, runnable labs, public-file audit and wheel build. This checks software portability; live Bluetooth remains validated only on the recorded Windows setup.

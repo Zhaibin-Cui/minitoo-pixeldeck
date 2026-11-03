@@ -1,6 +1,7 @@
 <p align="center"><img src="docs/assets/hero.gif" alt="MiniToo Pixeldeck: a miniature console in a glowing pixel forest" width="1080"></p>
 
 <p align="center">
+  <a href="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/actions/workflows/checks.yml"><img src="https://github.com/Zhaibin-Cui/minitoo-pixeldeck/actions/workflows/checks.yml/badge.svg" alt="Offline checks on Windows and Linux"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-9affb3?style=flat-square&amp;labelColor=152440" alt="License: MIT"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python_core-3.10%2B-54edff?style=flat-square&amp;labelColor=152440" alt="Python core: 3.10+"></a>
   <a href="docs/usage.md#bluetooth-compatibility"><img src="https://img.shields.io/badge/live_backend-Windows-ff73bc?style=flat-square&amp;labelColor=152440" alt="Live backend: Windows"></a>
@@ -349,7 +350,7 @@ python tools/build_gallery.py
 python tools/release.py
 ```
 
-The release tool uses a public file allowlist, checks relative Markdown links, scans for local paths/device identifiers/secrets, and writes a ZIP plus SHA-256 checksum. It does not publish anything. The included CI workflow is configured for offline tests and wheel builds on Windows and Linux.
+The release tool uses a public file allowlist, checks relative Markdown links, scans for local paths/device identifiers/secrets, and writes a ZIP plus SHA-256 checksum. It does not publish anything. The included CI workflow runs offline tests and wheel builds on Windows and Linux. All four Python 3.11/3.12 jobs passed in the [first hosted run](https://github.com/Zhaibin-Cui/minitoo-pixeldeck/actions/runs/41648029498).
 
 <details>
 <summary><strong>Rebuild the visual documentation</strong></summary>

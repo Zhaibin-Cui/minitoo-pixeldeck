@@ -37,7 +37,7 @@
   "dashboard_device_ack_check": true,
   "utility_cartridges_0_4_tested_on_device": false,
   "hardware_accessed_by_offline_tests": false,
-  "hosted_ci_run": false,
+  "hosted_ci_run": true,
   "audio": {
     "dependency": "sounddevice 0.5.6",
     "physical_playback_checked": true,
@@ -67,5 +67,18 @@
     "lossless_round_trip_tested": true,
     "hardware_record": "hardware-display-codecs.json",
     "compact_view_subjective_acceptance": false
+  },
+  "hosted_ci": {
+    "url": "https://github.com/Zhaibin-Cui/minitoo-pixeldeck/actions/runs/41648029498",
+    "commit": "d7e9c9ef29c6b0956d27e4e1d9b232d420f5a063",
+    "jobs_passed": 4,
+    "systems": [
+      "windows-latest",
+      "ubuntu-latest"
+    ],
+    "python": [
+      "3.11",
+      "3.12"
+    ]
   }
 }
