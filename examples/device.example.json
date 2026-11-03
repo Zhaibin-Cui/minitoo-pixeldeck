@@ -1,0 +1,9 @@
+{
+  "address": "",
+  "name": "Divoom MiniToo-Audio",
+  "endpoint": "MiniToo",
+  "chunk_delay_ms": 10,
+  "quality": 72,
+  "timeout": 5,
+  "retries": 3
+}

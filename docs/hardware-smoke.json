@@ -1,0 +1,22 @@
+{
+  "version": "0.3.0",
+  "date": "2026-11-03",
+  "kind": "display-only hardware smoke",
+  "demos": [
+    "pulse",
+    "buddy",
+    "rain",
+    "orbit",
+    "focus",
+    "buttons",
+    "signal"
+  ],
+  "acknowledged_frames": 24,
+  "elapsed_seconds": 9.36,
+  "median_transfer_ms": 390.5,
+  "max_transfer_ms": 437.0,
+  "retransmissions": 0,
+  "physical_appearance_confirmed": false,
+  "physical_media_buttons_tested": false,
+  "note": "Program received device acknowledgments; no operator visual confirmation for these new scenes. Brightness and clips were not sent."
+}
